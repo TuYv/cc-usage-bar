@@ -30,9 +30,9 @@
   },
   "homepage": "https://github.com/TuYv/cc-usage-bar#readme",
   "bin": {
-    "cc-usage-bar": "./bin/cc-usage-statusline.js",
-    "cc-usage-statusline": "./bin/cc-usage-statusline.js",
-    "cc-usage-fetch": "./bin/cc-usage-fetch.js"
+    "cc-usage-bar": "bin/cc-usage-statusline.js",
+    "cc-usage-statusline": "bin/cc-usage-statusline.js",
+    "cc-usage-fetch": "bin/cc-usage-fetch.js"
   },
   "files": [
     "dist/src",
