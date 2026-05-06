@@ -1,0 +1,58 @@
+{
+  "name": "cc-usage-statusline",
+  "version": "0.1.0",
+  "description": "Show your Claude Code subscription usage (5h / 7d, or balance) in the statusline. Supports Anthropic, Kimi, GLM, MiniMax, DeepSeek, StepFun, SiliconFlow, OpenRouter, Novita.",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "statusline",
+    "usage",
+    "quota",
+    "anthropic",
+    "kimi",
+    "glm",
+    "zhipu",
+    "minimax",
+    "deepseek",
+    "openrouter",
+    "siliconflow",
+    "novita",
+    "stepfun"
+  ],
+  "license": "MIT",
+  "author": "ty861506831@gmail.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/REPLACE-ME/cc-usage-statusline"
+  },
+  "bugs": {
+    "url": "https://github.com/REPLACE-ME/cc-usage-statusline/issues"
+  },
+  "homepage": "https://github.com/REPLACE-ME/cc-usage-statusline#readme",
+  "bin": {
+    "cc-usage-statusline": "./bin/cc-usage-statusline.js",
+    "cc-usage-fetch": "./bin/cc-usage-fetch.js"
+  },
+  "files": [
+    "dist/src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node --test 'dist/test/**/*.test.js'",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}
