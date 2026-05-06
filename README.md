@@ -1,5 +1,11 @@
 # cc-usage-bar
 
+[![npm version](https://img.shields.io/npm/v/cc-usage-bar.svg)](https://www.npmjs.com/package/cc-usage-bar)
+[![npm downloads](https://img.shields.io/npm/dm/cc-usage-bar.svg)](https://www.npmjs.com/package/cc-usage-bar)
+[![license](https://img.shields.io/npm/l/cc-usage-bar.svg)](LICENSE)
+[![node](https://img.shields.io/node/v/cc-usage-bar.svg)](package.json)
+[![GitHub](https://img.shields.io/badge/GitHub-TuYv%2Fcc--usage--bar-181717?logo=github)](https://github.com/TuYv/cc-usage-bar)
+
 [中文说明](README.zh-CN.md)
 
 Show your Claude Code subscription usage in the statusline. Works with the official Anthropic subscription and 8 alternative providers (Kimi, GLM/Zhipu, MiniMax, DeepSeek, StepFun, SiliconFlow, OpenRouter, Novita).
