@@ -23,12 +23,12 @@
   "author": "ty861506831@gmail.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/REPLACE-ME/cc-usage-statusline"
+    "url": "git+https://github.com/TuYv/cc-usage-statusline.git"
   },
   "bugs": {
-    "url": "https://github.com/REPLACE-ME/cc-usage-statusline/issues"
+    "url": "https://github.com/TuYv/cc-usage-statusline/issues"
   },
-  "homepage": "https://github.com/REPLACE-ME/cc-usage-statusline#readme",
+  "homepage": "https://github.com/TuYv/cc-usage-statusline#readme",
   "bin": {
     "cc-usage-statusline": "./bin/cc-usage-statusline.js",
     "cc-usage-fetch": "./bin/cc-usage-fetch.js"
@@ -37,6 +37,7 @@
     "dist/src",
     "bin",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "engines": {

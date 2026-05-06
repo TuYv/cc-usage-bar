@@ -1,5 +1,7 @@
 # cc-usage-statusline
 
+[中文说明](README.zh-CN.md)
+
 Show your Claude Code subscription usage in the statusline. Works with the official Anthropic subscription and 8 alternative providers (Kimi, GLM/Zhipu, MiniMax, DeepSeek, StepFun, SiliconFlow, OpenRouter, Novita).
 
 ```
