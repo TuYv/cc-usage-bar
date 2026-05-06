@@ -1,5 +1,5 @@
 {
-  "name": "cc-usage-statusline",
+  "name": "cc-usage-bar",
   "version": "0.1.0",
   "description": "Show your Claude Code subscription usage (5h / 7d, or balance) in the statusline. Supports Anthropic, Kimi, GLM, MiniMax, DeepSeek, StepFun, SiliconFlow, OpenRouter, Novita.",
   "keywords": [
@@ -23,13 +23,14 @@
   "author": "ty861506831@gmail.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TuYv/cc-usage-statusline.git"
+    "url": "git+https://github.com/TuYv/cc-usage-bar.git"
   },
   "bugs": {
-    "url": "https://github.com/TuYv/cc-usage-statusline/issues"
+    "url": "https://github.com/TuYv/cc-usage-bar/issues"
   },
-  "homepage": "https://github.com/TuYv/cc-usage-statusline#readme",
+  "homepage": "https://github.com/TuYv/cc-usage-bar#readme",
   "bin": {
+    "cc-usage-bar": "./bin/cc-usage-statusline.js",
     "cc-usage-statusline": "./bin/cc-usage-statusline.js",
     "cc-usage-fetch": "./bin/cc-usage-fetch.js"
   },

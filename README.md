@@ -1,4 +1,4 @@
-# cc-usage-statusline
+# cc-usage-bar
 
 [中文说明](README.zh-CN.md)
 
@@ -17,8 +17,8 @@ Or, with `--format=bar-time`:
 ## Install
 
 ```bash
-npm install -g cc-usage-statusline
-cc-usage-statusline install
+npm install -g cc-usage-bar
+cc-usage-bar install
 ```
 
 Restart Claude Code. That's it.
@@ -26,17 +26,18 @@ Restart Claude Code. That's it.
 To uninstall:
 
 ```bash
-cc-usage-statusline uninstall
+cc-usage-bar uninstall
 ```
 
 The original `~/.claude/settings.json` is restored from a timestamped backup.
 
 ## How it works
 
-A Claude Code statusline is just a shell command — its stdout is rendered to the bottom of the TUI. This package ships two binaries:
+A Claude Code statusline is just a shell command — its stdout is rendered to the bottom of the TUI. This package ships these binaries:
 
 - `cc-usage-fetch` — emits one statusline string. Called by Claude Code 30 s by default.
-- `cc-usage-statusline` — installer. Wires `cc-usage-fetch` into `~/.claude/settings.json`'s `statusLine.command`. If you already have a statusline command, it's wrapped, not replaced.
+- `cc-usage-bar` — installer. Wires `cc-usage-fetch` into `~/.claude/settings.json`'s `statusLine.command`. If you already have a statusline command, it's wrapped, not replaced.
+- `cc-usage-statusline` — compatibility alias for `cc-usage-bar`.
 
 `cc-usage-fetch` resolves usage data via three fallbacks, in order:
 
@@ -65,7 +66,7 @@ Subscription mode renders `5h X% Wk Y%`. Balance mode renders `¥34.20` or `$5.8
 ## Render presets
 
 ```bash
-cc-usage-statusline install --format <preset> --bar-width <n>
+cc-usage-bar install --format <preset> --bar-width <n>
 ```
 
 | Preset | Output |
@@ -100,7 +101,7 @@ For AI-assisted personalization, pass one compact JSON object as `--bar-spec` or
 The tool does not call AI or parse images itself; it only renders the JSON spec. Ask your AI assistant to convert an image, phrase, or theme into one of these shapes:
 
 ```bash
-cc-usage-statusline install --format=bar-time \
+cc-usage-bar install --format=bar-time \
   --bar-spec='{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}'
 ```
 
@@ -125,7 +126,7 @@ cc-usage-statusline install --format=bar-time \
 Suggested prompt for your AI assistant:
 
 ```text
-Convert this image or phrase into a cc-usage-statusline bar spec.
+Convert this image or phrase into a cc-usage-bar bar spec.
 Return only one JSON object using mode "tint", "cells", or "frames".
 Prefer "tint" for phrases, faces, logos, and decorative text.
 Keep it single-line and terminal-friendly.
@@ -146,7 +147,7 @@ Install just writes a command into `settings.json`. Edit it freely:
 ## Diagnostics
 
 ```bash
-cc-usage-statusline status
+cc-usage-bar status
 ```
 
 Shows current provider, source (stdin / cache / api), 5h + 7d countdowns or balance breakdown. Bypasses the cache for accurate readings.
@@ -164,7 +165,7 @@ base url:      <not set, defaults to anthropic>
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Statusline blank | Free tier (no `rate_limits` in stdin) and no Anthropic token, or unknown provider | Run `cc-usage-statusline status`; check `ANTHROPIC_BASE_URL` |
+| Statusline blank | Free tier (no `rate_limits` in stdin) and no Anthropic token, or unknown provider | Run `cc-usage-bar status`; check `ANTHROPIC_BASE_URL` |
 | `unauthorized (401)` in `status` | OAuth token expired or wrong `ANTHROPIC_AUTH_TOKEN` | Re-login: `claude` (Anthropic), or update token in cc-switch / settings.json |
 | Statusline shows old data | 30 s success cache | Wait, or `rm /tmp/cc-oauth-usage.json` |
 | Bar chars look like `??` | Terminal can't render Unicode block elements (U+2588, U+2591) | Use `--format=numeric` or set a Unicode-capable font |

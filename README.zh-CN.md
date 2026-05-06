@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-`cc-usage-statusline` 可以把 Claude Code 的订阅用量显示在底部 statusline。它支持官方 Anthropic 订阅，也支持 Kimi、GLM/Zhipu、MiniMax、DeepSeek、StepFun、SiliconFlow、OpenRouter、Novita 等替代 provider。
+`cc-usage-bar` 可以把 Claude Code 的订阅用量显示在底部 statusline。它支持官方 Anthropic 订阅，也支持 Kimi、GLM/Zhipu、MiniMax、DeepSeek、StepFun、SiliconFlow、OpenRouter、Novita 等替代 provider。
 
 默认效果：
 
@@ -19,8 +19,8 @@
 ## 安装
 
 ```bash
-npm install -g cc-usage-statusline
-cc-usage-statusline install
+npm install -g cc-usage-bar
+cc-usage-bar install
 ```
 
 然后重启 Claude Code。
@@ -28,17 +28,18 @@ cc-usage-statusline install
 卸载：
 
 ```bash
-cc-usage-statusline uninstall
+cc-usage-bar uninstall
 ```
 
 安装时会备份原来的 `~/.claude/settings.json`。如果你已经有自己的 statusline 命令，本工具会包装它，不会直接覆盖。
 
 ## 工作原理
 
-Claude Code 的 statusline 本质上是一条 shell 命令，命令的 stdout 会显示在 TUI 底部。本项目提供两个命令：
+Claude Code 的 statusline 本质上是一条 shell 命令，命令的 stdout 会显示在 TUI 底部。本项目提供这些命令：
 
 - `cc-usage-fetch`：输出一行 statusline 文本，默认由 Claude Code 每 30 秒调用一次。
-- `cc-usage-statusline`：安装器，把 `cc-usage-fetch` 写入 `~/.claude/settings.json` 的 `statusLine.command`。
+- `cc-usage-bar`：安装器，把 `cc-usage-fetch` 写入 `~/.claude/settings.json` 的 `statusLine.command`。
+- `cc-usage-statusline`：`cc-usage-bar` 的兼容别名。
 
 `cc-usage-fetch` 会按下面顺序获取数据：
 
@@ -67,7 +68,7 @@ Provider 通过 `ANTHROPIC_BASE_URL` 判断。
 ## 显示格式
 
 ```bash
-cc-usage-statusline install --format <preset> --bar-width <n>
+cc-usage-bar install --format <preset> --bar-width <n>
 ```
 
 | 预设 | 输出示例 |
@@ -107,7 +108,7 @@ cc-usage-statusline install --format <preset> --bar-width <n>
 推荐给颜文字、短句、logo 风格文本。已完成部分会染色，未完成部分会变暗，但整段文字一直可见：
 
 ```bash
-cc-usage-statusline install --format=bar-time \
+cc-usage-bar install --format=bar-time \
   --bar-spec='{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}'
 ```
 
@@ -130,7 +131,7 @@ cc-usage-statusline install --format=bar-time \
 可以直接把下面这段发给你的 AI 助手：
 
 ```text
-请把这张图片、这句话或这个主题转换成 cc-usage-statusline 的 bar spec。
+请把这张图片、这句话或这个主题转换成 cc-usage-bar 的 bar spec。
 只返回一个 JSON 对象，mode 使用 "tint"、"cells" 或 "frames"。
 短语、颜文字、logo、装饰文本优先使用 "tint"，因为它会让整段文字始终可见，只按进度染色。
 输出必须是单行、终端友好、适合放进 --bar-spec 的 JSON。
@@ -151,7 +152,7 @@ cc-usage-statusline install --format=bar-time \
 ## 诊断
 
 ```bash
-cc-usage-statusline status
+cc-usage-bar status
 ```
 
 会显示当前 provider、数据来源、缓存状态、5 小时 / 7 天重置倒计时，或余额详情。该命令会跳过缓存，适合排查问题。
@@ -171,7 +172,7 @@ base url:      <not set, defaults to anthropic>
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| statusline 为空 | 免费用户没有 stdin `rate_limits`，也没有可用 token；或 provider 未识别 | 运行 `cc-usage-statusline status`，检查 `ANTHROPIC_BASE_URL` |
+| statusline 为空 | 免费用户没有 stdin `rate_limits`，也没有可用 token；或 provider 未识别 | 运行 `cc-usage-bar status`，检查 `ANTHROPIC_BASE_URL` |
 | `unauthorized (401)` | OAuth token 过期，或 `ANTHROPIC_AUTH_TOKEN` 错误 | Anthropic 重新运行 `claude` 登录；其他 provider 更新 token |
 | statusline 显示旧数据 | 成功结果有 30 秒缓存 | 等待，或删除 `/tmp/cc-oauth-usage.json` |
 | 进度条显示成 `??` | 终端字体不支持 Unicode 块字符 | 使用 `--format=numeric`，或换支持 Unicode 的字体 |
