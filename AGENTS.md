@@ -1,6 +1,6 @@
 # AGENTS.md — cc-usage-bar 全功能说明
 
-> 这份文件是面向 AI 助手（Claude Code、Cursor、Codex 等）的安装/配置说明。如果用户对你说「装 cc-usage-bar」「帮我配 statusline 用量条」「装下 cc-usage-bar 帮我配好」之类的话，请按本文档完成全部步骤。**默认无需向用户追加确认**，除以下情况：用户的现有 `statusLine.command` 看上去包含定制脚本而你不确定如何保留时；或者用户没登录过 Claude Code（凭证查不到）。
+> 这份文件是面向 AI 助手（Claude Code、Cursor、Codex 等）的安装/配置说明。如果用户对你说「装 cc-usage-bar」「帮我配 statusline 用量条」「装下 cc-usage-bar 帮我配好」之类的话，请按本文档完成全部步骤。**默认无需向用户追加确认**；只有用户没登录过 Claude Code（凭证查不到）时才停下来让用户先登录。
 
 ## 1. 这个包是什么
 
@@ -17,6 +17,8 @@
 ## 2. 一句话目标
 
 > **用户只描述偏好，你把 `statusLine.command` 配成 `cc-usage-bar-wrap`，并保留用户原有前缀。**
+
+如果已有 `statusLine.command`、`statusline-command.sh`、自定义 shell 脚本、git/path/model 展示等前缀内容，**一律视为要保留的前缀**：按 3.4 抽出它，并用 `cc-usage-bar-wrap --prefix=...` 串起来。不要询问是否覆盖、追加或暂不修改；追加保留是本项目默认行为。
 
 ## 3. 安装流程（必走）
 
@@ -39,7 +41,7 @@ which cc-usage-bar-wrap && which cc-usage-fetch
 where.exe cc-usage-bar-wrap
 ```
 
-要求：`cc-usage-bar` ≥ **0.4.0**（自适应换行 + 周限额上色 + countdown 预设 + 颜色 ramp 自定义）。已装旧版的话用 `npm i -g cc-usage-bar@latest` 升级。
+要求：`cc-usage-bar` ≥ **0.4.1**（自适应换行 + 周限额上色 + countdown 预设 + 颜色 ramp 自定义 + tint reverse 样式）。已装旧版的话用 `npm i -g cc-usage-bar@latest` 升级。
 
 ### 3.3 读取现有 statusLine.command
 
@@ -171,6 +173,9 @@ CC_USAGE_COLORS_BALANCE='0:cyan,60:yellow,90:red'
 
 # 单色渐变（tint）—— 完成部分上色，剩余部分变暗
 --bar-spec='{"mode":"tint","text":"████████","emptyStyle":"dim"}'
+
+# 反色填充（reverse）—— 完成部分用反色底块增强对比
+--bar-spec='{"mode":"tint","text":"Ciallo~(∠・ω< )⌒★","style":"reverse"}'
 
 # 动画帧（frames）—— 按百分比从帧序列里挑一帧
 --bar-spec='{"mode":"frames","frames":["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]}'

@@ -24,6 +24,7 @@ const NOW = localDate(2026, 5, 6, 10, 0); // local May 6 10:00
 const RESET = '\x1b[0m';
 const GREEN = '\x1b[32m';
 const DIM = '\x1b[2m';
+const REVERSE = '\x1b[7m';
 
 function opts(over: Partial<FormatOptions> = {}): FormatOptions {
   return { ...DEFAULT_FORMAT, color: false, showProviderName: false, now: NOW, ...over };
@@ -77,6 +78,11 @@ test('parseBarSpec: accepts cells, tint, and frames specs', () => {
   assert.deepEqual(parseBarSpec('{"mode":"tint","text":"Ciallo"}'), {
     mode: 'tint',
     text: 'Ciallo',
+  });
+  assert.deepEqual(parseBarSpec('{"mode":"tint","text":"Ciallo","style":"reverse"}'), {
+    mode: 'tint',
+    text: 'Ciallo',
+    style: 'reverse',
   });
   assert.deepEqual(parseBarSpec('{"mode":"frames","frames":["a","b"]}'), {
     mode: 'frames',
@@ -152,7 +158,37 @@ test('bar spec tint: colors the completed prefix and dims the rest', () => {
       format: 'bar',
       barSpec: { mode: 'tint', text: 'abcd' },
     })),
-    `[${GREEN}ab${RESET}${DIM}cd${RESET}] 50%`
+    `${GREEN}[${RESET}${GREEN}ab${RESET}${DIM}cd${RESET}${GREEN}] 50%${RESET}`
+  );
+});
+
+test('bar spec tint plain empty segment stays uncolored', () => {
+  const partial: SubscriptionUsage = {
+    kind: 'subscription',
+    five_hour: { utilization: 50 },
+  };
+  assert.equal(
+    renderUsage(partial, opts({
+      color: true,
+      format: 'bar',
+      barSpec: { mode: 'tint', text: 'abcd', emptyStyle: 'plain' },
+    })),
+    `${GREEN}[${RESET}${GREEN}ab${RESET}cd${GREEN}] 50%${RESET}`
+  );
+});
+
+test('bar spec tint reverse: reverses the completed prefix for stronger contrast', () => {
+  const partial: SubscriptionUsage = {
+    kind: 'subscription',
+    five_hour: { utilization: 50 },
+  };
+  assert.equal(
+    renderUsage(partial, opts({
+      color: true,
+      format: 'bar',
+      barSpec: { mode: 'tint', text: 'abcd', style: 'reverse' },
+    })),
+    `${GREEN}[${RESET}${GREEN}${REVERSE}ab${RESET}${DIM}cd${RESET}${GREEN}] 50%${RESET}`
   );
 });
 

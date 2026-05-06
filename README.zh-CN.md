@@ -122,6 +122,12 @@ cc-usage-bar install --format=bar-time \
 {"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}
 ```
 
+如果想让完成部分更像“填充底块”，可以加 `style:"reverse"`，完成部分会用反色块增强对比：
+
+```json
+{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"reverse"}
+```
+
 #### cells：替换默认块字符
 
 ```json

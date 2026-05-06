@@ -117,6 +117,12 @@ cc-usage-bar install --format=bar-time \
 {"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}
 ```
 
+For stronger contrast, add `style:"reverse"` so the completed prefix is rendered as a reversed-color block:
+
+```json
+{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"reverse"}
+```
+
 `cells` replaces the default block characters:
 
 ```json

@@ -21,7 +21,7 @@ export const FORMAT_PRESETS: FormatPreset[] = [
 
 export type BarSpec =
   | { mode: 'cells'; filled: string; empty: string; width?: number }
-  | { mode: 'tint'; text: string; emptyStyle?: 'dim' | 'plain' }
+  | { mode: 'tint'; text: string; emptyStyle?: 'dim' | 'plain'; style?: 'fg' | 'reverse' }
   | { mode: 'frames'; frames: string[] };
 
 // `ansi` is the resolved escape sequence (or null for "no color in this band").
@@ -43,6 +43,7 @@ export interface FormatOptions {
 }
 
 const ANSI_RESET = '\x1b[0m';
+const ANSI_REVERSE = '\x1b[7m';
 
 export const COLOR_MAP: Record<string, string> = {
   none: '',
@@ -164,6 +165,7 @@ export function parseBarSpec(raw: string | undefined): BarSpec | null {
     if (!isNonEmptyString(obj.text)) return null;
     const out: BarSpec = { mode: 'tint', text: obj.text };
     if (obj.emptyStyle === 'plain' || obj.emptyStyle === 'dim') out.emptyStyle = obj.emptyStyle;
+    if (obj.style === 'fg' || obj.style === 'reverse') out.style = obj.style;
     return out;
   }
   if (obj.mode === 'frames') {
@@ -260,7 +262,8 @@ export function formatBar(
     const active = chars.slice(0, filled).join('');
     const inactive = chars.slice(filled).join('');
     if (!useColor) return active + inactive;
-    const activePart = activeColor && active ? paint(active, activeColor, true) : active;
+    const activeStyle = activeColor && spec.style === 'reverse' ? `${activeColor}${ANSI_REVERSE}` : activeColor;
+    const activePart = activeStyle && active ? paint(active, activeStyle, true) : active;
     const inactivePart =
       inactive && spec.emptyStyle !== 'plain' ? paint(inactive, COLOR_MAP.dim, true) : inactive;
     return activePart + inactivePart;
@@ -278,12 +281,23 @@ function paint(text: string, color: string | null, useColor: boolean): string {
   return `${color}${text}${ANSI_RESET}`;
 }
 
-// Tint mode colours the bar internally (active vs dim), so wrapping the whole
-// tier text in a single colour would double-paint it. This helper centralises
-// that decision.
 function applyTierPaint(text: string, color: string | null, opts: FormatOptions, tpl: string): string {
-  if (opts.barSpec?.mode === 'tint' && opts.color && tpl.includes('{bar}')) return text;
   return paint(text, color, opts.color);
+}
+
+function applyTintTemplate(tpl: string, vars: Record<string, string>, color: string | null, opts: FormatOptions): string {
+  if (!opts.color || !color) return applyTemplate(tpl, vars);
+  return tpl
+    .split(/(\{bar\})/g)
+    .map((part) => (part === '{bar}' ? vars.bar ?? '{bar}' : paint(applyTemplate(part, vars), color, true)))
+    .join('');
+}
+
+function renderTemplate(tpl: string, vars: Record<string, string>, color: string | null, opts: FormatOptions): string {
+  if (opts.barSpec?.mode === 'tint' && tpl.includes('{bar}')) {
+    return applyTintTemplate(tpl, vars, color, opts);
+  }
+  return applyTierPaint(applyTemplate(tpl, vars), color, opts, tpl);
 }
 
 function prependProvider(text: string, planName: string | undefined, opts: FormatOptions): string {
@@ -305,15 +319,15 @@ function renderTier(ctx: TierContext, opts: FormatOptions): string {
   const tpl = opts.template ?? SUB_PRESET_TPL[opts.format];
   const ramp = ctx.label === '5h' ? opts.colorRamp5h ?? DEFAULT_RAMP : opts.colorRampWk ?? DEFAULT_RAMP;
   const color = colorFromRamp(pct, ramp);
-  const text = applyTemplate(tpl, {
+  const vars = {
     label: ctx.label,
     percent: String(pct),
     bar: formatBar(pct, opts.barWidth, opts.barSpec, color, opts.color),
     expiry: formatExpiry(ctx.tier.resets_at, opts.now),
     countdown: formatCountdown(ctx.tier.resets_at, opts.now),
     provider: ctx.provider,
-  });
-  return applyTierPaint(text, color, opts, tpl);
+  };
+  return renderTemplate(tpl, vars, color, opts);
 }
 
 function currencySymbol(unit: string): string {
@@ -351,18 +365,18 @@ export function renderBalance(d: BalanceUsage, opts: FormatOptions): string {
   // bar-bearing preset doesn't degrade to an empty "[] $34.20".
   if (typeof d.total !== 'number') {
     const tpl = opts.template ?? BAL_PRESET_TPL.compact;
-    const text = applyTemplate(tpl, {
+    const vars = {
       label: '', percent: '0', bar: '', expiry: '', countdown: '',
       provider: d.planName ?? '',
       amount: fmtMoney(d.remaining, d.unit),
-    });
-    return prependProvider(applyTierPaint(text, null, opts, tpl), d.planName, opts);
+    };
+    return prependProvider(renderTemplate(tpl, vars, null, opts), d.planName, opts);
   }
   const total = d.total;
   const usedPct = total > 0 ? ((total - d.remaining) / total) * 100 : 0;
   const tpl = opts.template ?? BAL_PRESET_TPL[opts.format];
   const color = colorFromRamp(usedPct, opts.colorRampBalance ?? DEFAULT_RAMP);
-  const text = applyTemplate(tpl, {
+  const vars = {
     label: '',
     percent: String(Math.round(usedPct)),
     bar: formatBar(usedPct, opts.barWidth, opts.barSpec, color, opts.color),
@@ -370,8 +384,8 @@ export function renderBalance(d: BalanceUsage, opts: FormatOptions): string {
     countdown: '',
     provider: d.planName ?? '',
     amount: `${fmtMoney(d.remaining, d.unit)}/${fmtMoney(total, d.unit)}`,
-  });
-  return prependProvider(applyTierPaint(text, color, opts, tpl), d.planName, opts);
+  };
+  return prependProvider(renderTemplate(tpl, vars, color, opts), d.planName, opts);
 }
 
 export function renderUsage(data: NormalizedUsage | null | undefined, opts: FormatOptions): string {

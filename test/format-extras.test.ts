@@ -226,6 +226,6 @@ test('renderTier: tint bar respects per-tier color (Wk now colored)', () => {
   // Active is wrapped in green (50% < 60 default)
   const greenA = `${COLOR_MAP.green}A${RESET}`;
   const dimB = `${COLOR_MAP.dim}B${RESET}`;
-  const tile = `[${greenA}${dimB}] 50%`;
+  const tile = `${COLOR_MAP.green}[${RESET}${greenA}${dimB}${COLOR_MAP.green}] 50%${RESET}`;
   assert.equal(out, `${tile} / ${tile}`);
 });
