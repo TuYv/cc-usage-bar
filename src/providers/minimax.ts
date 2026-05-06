@@ -59,7 +59,7 @@ export const minimaxAdapter: UsageAdapter = {
       'Content-Type': 'application/json',
     });
     if (res.authFailed) return { ok: false, authFailed: true, error: res.error };
-    if (!res.ok || !res.body) return { ok: false, error: res.error ?? 'request failed' };
+    if (!res.ok || !res.body) return { ok: false, status: res.status, error: res.error ?? 'request failed' };
     const parsed = parseMinimax(res.body);
     if (!parsed) return { ok: false, error: 'invalid response shape' };
     if ('error' in parsed) return { ok: false, error: parsed.error };

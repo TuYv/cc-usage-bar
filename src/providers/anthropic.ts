@@ -55,7 +55,7 @@ export const anthropicAdapter: UsageAdapter = {
       'anthropic-beta': BETA,
     });
     if (res.authFailed) return { ok: false, authFailed: true, error: res.error };
-    if (!res.ok || !res.body) return { ok: false, error: res.error ?? 'request failed' };
+    if (!res.ok || !res.body) return { ok: false, status: res.status, error: res.error ?? 'request failed' };
     const data = parseAnthropic(res.body);
     if (!data) return { ok: false, error: 'invalid response shape' };
     return { ok: true, data };

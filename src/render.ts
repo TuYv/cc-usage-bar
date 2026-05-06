@@ -24,6 +24,7 @@ export interface RenderOptions {
 function toFormatOptions(opts: RenderOptions): FormatOptions {
   return {
     ...DEFAULT_FORMAT,
+    format: 'compact', // legacy stdin shim — keep compact regardless of new global default
     color: opts.color,
     showProviderName: opts.showProviderName ?? false,
   };

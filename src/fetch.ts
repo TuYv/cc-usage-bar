@@ -4,20 +4,29 @@ import * as path from 'node:path';
 import { renderNormalized, shouldUseColor, UsageData } from './render';
 import { selectAdapter, getEnv } from './providers/registry';
 import { NormalizedUsage, SubscriptionUsage } from './providers/types';
-import { DEFAULT_FORMAT, FORMAT_PRESETS, FormatOptions, isValidPreset, parseBarSpec } from './format';
+import {
+  DEFAULT_FORMAT,
+  FORMAT_PRESETS,
+  FormatOptions,
+  isValidPreset,
+  parseBarSpec,
+  parseColorRamp,
+} from './format';
 
 const CACHE_PATH = path.join(os.tmpdir(), 'cc-oauth-usage.json');
 const SUCCESS_TTL_MS = 30_000;
 const AUTH_FAIL_TTL_MS = 60_000;
+const TRANSIENT_FAIL_TTL_MS = 60_000;
 const STDIN_TIMEOUT_MS = 500;
 
-type CacheStatusValue = 'ok' | 'auth_failed';
+type CacheStatusValue = 'ok' | 'auth_failed' | 'rate_limited';
 
 interface CacheEntry {
   fetched_at: number;
   status: CacheStatusValue;
   adapter_id: string;
   data: NormalizedUsage | null;
+  error?: string;
 }
 
 // ---------- stdin path (Anthropic only) ----------
@@ -116,15 +125,24 @@ function writeCache(entry: CacheEntry): void {
 
 function isCacheFresh(entry: CacheEntry): boolean {
   const age = Date.now() - entry.fetched_at;
-  if (entry.status === 'ok') return age >= 0 && age < SUCCESS_TTL_MS;
-  if (entry.status === 'auth_failed') return age >= 0 && age < AUTH_FAIL_TTL_MS;
+  if (age < 0) return false;
+  if (entry.status === 'ok') return age < SUCCESS_TTL_MS;
+  if (entry.status === 'auth_failed') return age < AUTH_FAIL_TTL_MS;
+  if (entry.status === 'rate_limited') return age < TRANSIENT_FAIL_TTL_MS;
   return false;
 }
 
 // ---------- orchestration ----------
 
 export type RunSource = 'stdin' | 'cache' | 'api' | 'none';
-export type CacheStatusReport = 'hit' | 'miss' | 'expired' | 'auth_failed_cached' | 'skipped' | 'adapter_changed';
+export type CacheStatusReport =
+  | 'hit'
+  | 'miss'
+  | 'expired'
+  | 'auth_failed_cached'
+  | 'rate_limited_cached'
+  | 'skipped'
+  | 'adapter_changed';
 
 export interface RunResult {
   data: NormalizedUsage | null;
@@ -138,12 +156,16 @@ export interface RunResult {
 export interface RunOptions {
   forceFresh?: boolean;
   skipStdin?: boolean;
+  // Pre-parsed Claude Code statusline JSON. When provided, run() uses this
+  // instead of reading process.stdin (so a parent like wrap.ts can read stdin
+  // once and feed both the prefix subprocess and run() concurrently).
+  stdinJson?: unknown;
 }
 
 export async function run(opts: RunOptions = {}): Promise<RunResult> {
   // 1. stdin (Claude Code official rate_limits — Anthropic-only)
   if (!opts.skipStdin) {
-    const stdinJson = await readStdinJson();
+    const stdinJson = opts.stdinJson !== undefined ? opts.stdinJson : await readStdinJson();
     const fromStdin = stdinAsSubscription(extractFromStdin(stdinJson));
     if (fromStdin) {
       return {
@@ -172,12 +194,16 @@ export async function run(opts: RunOptions = {}): Promise<RunResult> {
   // 2. cache (per-adapter)
   const cache = opts.forceFresh ? null : readCache();
   if (cache && cache.adapter_id === adapter.id && isCacheFresh(cache)) {
+    let cacheStatusReport: CacheStatusReport = 'hit';
+    if (cache.status === 'auth_failed') cacheStatusReport = 'auth_failed_cached';
+    else if (cache.status === 'rate_limited') cacheStatusReport = 'rate_limited_cached';
     return {
       data: cache.data,
       source: 'cache',
       adapterId: adapter.id,
-      cacheStatus: cache.status === 'auth_failed' ? 'auth_failed_cached' : 'hit',
+      cacheStatus: cacheStatusReport,
       authFailed: cache.status === 'auth_failed',
+      error: cache.error,
     };
   }
   const cacheStatusOnMiss: CacheStatusReport =
@@ -196,7 +222,13 @@ export async function run(opts: RunOptions = {}): Promise<RunResult> {
     };
   }
   if (result.authFailed) {
-    writeCache({ fetched_at: Date.now(), status: 'auth_failed', adapter_id: adapter.id, data: null });
+    writeCache({
+      fetched_at: Date.now(),
+      status: 'auth_failed',
+      adapter_id: adapter.id,
+      data: null,
+      error: result.error,
+    });
     return {
       data: null,
       source: 'api',
@@ -205,6 +237,20 @@ export async function run(opts: RunOptions = {}): Promise<RunResult> {
       authFailed: true,
       error: result.error,
     };
+  }
+  // Only cache real upstream backoff signals (429 + 5xx). Local errors —
+  // missing credentials, unset env, parse failures — leave the cache empty so
+  // the next 30s tick retries immediately once the user fixes the cause.
+  const httpStatus = result.status ?? 0;
+  const isTransientHttp = httpStatus === 429 || (httpStatus >= 500 && httpStatus < 600);
+  if (isTransientHttp) {
+    writeCache({
+      fetched_at: Date.now(),
+      status: 'rate_limited',
+      adapter_id: adapter.id,
+      data: null,
+      error: result.error,
+    });
   }
   return {
     data: null,
@@ -216,7 +262,18 @@ export async function run(opts: RunOptions = {}): Promise<RunResult> {
   };
 }
 
-function parseArg(args: string[], name: string): string | undefined {
+function logEvent(event: Record<string, unknown>): void {
+  const target = process.env.CC_USAGE_LOG;
+  if (!target) return;
+  try {
+    const line = JSON.stringify({ ts: new Date().toISOString(), pid: process.pid, ...event }) + '\n';
+    fs.appendFileSync(target, line);
+  } catch {
+    // best effort — never let logging break the statusline
+  }
+}
+
+export function parseArg(args: string[], name: string): string | undefined {
   const eq = args.find((a) => a.startsWith(`--${name}=`));
   if (eq) return eq.slice(name.length + 3);
   const idx = args.indexOf(`--${name}`);
@@ -244,14 +301,27 @@ Custom template (env, overrides --format):
   CC_USAGE_BAR_SPEC     Same JSON shape as --bar-spec
 
 Presets render like:
-  compact    5h 47% Wk 59%
-  numeric    47% / 59%
-  time       47% until 18:23 / 59% until 5/12 09:00
-  bar        [█████░░░░░] 47% / [██████░░░░] 59%
-  bar-time   [█████░░░░░] 47% until 18:23 / [██████░░░░] 59% until 5/12 09:00
+  compact         5h 47% Wk 59%
+  numeric         47% / 59%
+  time            47% until 18:23 / 59% until 5/12 09:00
+  countdown       47% in 1h23m / 59% in 2d6h
+  bar             [█████░░░░░] 47% / [██████░░░░] 59%
+  bar-time        [█████░░░░░] 47% until 18:23 / [██████░░░░] 59% until 5/12 09:00
+  bar-countdown   [█████░░░░░] 47% in 1h23m / [██████░░░░] 59% in 2d6h
+
+Per-tier color ramps (override defaults — comma-separated "<min>:<color>"):
+  CC_USAGE_COLORS_5H        e.g. '0:green,60:yellow,85:#ff3333'
+  CC_USAGE_COLORS_WK        e.g. '0:#888,60:#ffaa00,85:boldRed'
+  CC_USAGE_COLORS_BALANCE   used by balance providers (DeepSeek/OpenRouter/...)
+  Color tokens:
+    - named:  green/yellow/red/blue/magenta/cyan/white/gray/dim,
+              boldGreen/boldYellow/boldRed/boldBlue/boldMagenta/boldCyan/boldWhite
+    - hex:    '#RRGGBB' or '#RGB' (24-bit truecolor; needs a truecolor terminal)
+    - 'none': skip color in that band
 
 Other:
   NO_COLOR=1            Force-disable colors
+  CC_USAGE_LOG=<path>   Append one JSON line per invocation (source / cacheStatus / error) for diagnosing call frequency
   --help                Show this message
 `;
 
@@ -280,8 +350,25 @@ export async function main(): Promise<void> {
   if (templateEnv) fmt.template = templateEnv;
   const barSpec = parseBarSpec(barSpecArg ?? barSpecEnv);
   if (barSpec) fmt.barSpec = barSpec;
+  const RAMP_ENV: Array<['colorRamp5h' | 'colorRampWk' | 'colorRampBalance', string]> = [
+    ['colorRamp5h', 'CC_USAGE_COLORS_5H'],
+    ['colorRampWk', 'CC_USAGE_COLORS_WK'],
+    ['colorRampBalance', 'CC_USAGE_COLORS_BALANCE'],
+  ];
+  for (const [key, envName] of RAMP_ENV) {
+    const ramp = parseColorRamp(process.env[envName]);
+    if (ramp) fmt[key] = ramp;
+  }
 
   const result = await run({ skipStdin });
+
+  logEvent({
+    source: result.source,
+    cacheStatus: result.cacheStatus,
+    adapterId: result.adapterId,
+    authFailed: result.authFailed,
+    error: result.error ?? null,
+  });
 
   if (wantJson) {
     process.stdout.write(

@@ -1,13 +1,33 @@
 import { BalanceUsage, NormalizedUsage, SubscriptionTier, SubscriptionUsage } from './providers/types';
 
-export type FormatPreset = 'compact' | 'numeric' | 'time' | 'bar' | 'bar-time';
+export type FormatPreset =
+  | 'compact'
+  | 'numeric'
+  | 'time'
+  | 'countdown'
+  | 'bar'
+  | 'bar-time'
+  | 'bar-countdown';
 
-export const FORMAT_PRESETS: FormatPreset[] = ['compact', 'numeric', 'time', 'bar', 'bar-time'];
+export const FORMAT_PRESETS: FormatPreset[] = [
+  'compact',
+  'numeric',
+  'time',
+  'countdown',
+  'bar',
+  'bar-time',
+  'bar-countdown',
+];
 
 export type BarSpec =
   | { mode: 'cells'; filled: string; empty: string; width?: number }
   | { mode: 'tint'; text: string; emptyStyle?: 'dim' | 'plain' }
   | { mode: 'frames'; frames: string[] };
+
+// `ansi` is the resolved escape sequence (or null for "no color in this band").
+// Resolved at parse time so the hot render path doesn't re-validate each tick.
+export type ColorRule = { min: number; ansi: string | null };
+export type ColorRamp = ColorRule[];
 
 export interface FormatOptions {
   format: FormatPreset;
@@ -15,41 +35,73 @@ export interface FormatOptions {
   color: boolean;
   showProviderName: boolean;
   barSpec?: BarSpec;
-  template?: string; // overrides format if set
-  now?: Date; // injectable for tests
+  template?: string;
+  now?: Date;
+  colorRamp5h?: ColorRamp;
+  colorRampWk?: ColorRamp;
+  colorRampBalance?: ColorRamp;
 }
 
+const ANSI_RESET = '\x1b[0m';
+
+export const COLOR_MAP: Record<string, string> = {
+  none: '',
+  dim: '\x1b[2m',
+  black: '\x1b[30m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+  gray: '\x1b[90m',
+  boldRed: '\x1b[1;31m',
+  boldGreen: '\x1b[1;32m',
+  boldYellow: '\x1b[1;33m',
+  boldBlue: '\x1b[1;34m',
+  boldMagenta: '\x1b[1;35m',
+  boldCyan: '\x1b[1;36m',
+  boldWhite: '\x1b[1;37m',
+};
+
+export const COLOR_NAMES: string[] = Object.keys(COLOR_MAP);
+
+export const DEFAULT_RAMP: ColorRamp = [
+  { min: 0, ansi: COLOR_MAP.green },
+  { min: 60, ansi: COLOR_MAP.yellow },
+  { min: 85, ansi: COLOR_MAP.red },
+];
+
 export const DEFAULT_FORMAT: FormatOptions = {
-  format: 'compact',
+  format: 'bar-countdown',
   barWidth: 10,
   color: true,
   showProviderName: true,
+  colorRamp5h: DEFAULT_RAMP,
+  colorRampWk: DEFAULT_RAMP,
+  colorRampBalance: DEFAULT_RAMP,
 };
 
 const SUB_PRESET_TPL: Record<FormatPreset, string> = {
   compact: '{label} {percent}%',
   numeric: '{percent}%',
   time: '{percent}% until {expiry}',
+  countdown: '{percent}% in {countdown}',
   bar: '[{bar}] {percent}%',
   'bar-time': '[{bar}] {percent}% until {expiry}',
+  'bar-countdown': '[{bar}] {percent}% in {countdown}',
 };
 
 const BAL_PRESET_TPL: Record<FormatPreset, string> = {
   compact: '{amount}',
   numeric: '{amount}',
   time: '{amount}',
+  countdown: '{amount}',
   bar: '[{bar}] {amount}',
   'bar-time': '[{bar}] {amount}',
+  'bar-countdown': '[{bar}] {amount}',
 };
-
-const ANSI = {
-  reset: '\x1b[0m',
-  dim: '\x1b[2m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  boldRed: '\x1b[1;31m',
-} as const;
 
 const pad2 = (n: number) => n.toString().padStart(2, '0');
 
@@ -68,6 +120,22 @@ export function formatExpiry(iso: string | undefined, now: Date = new Date()): s
     return `${target.getMonth() + 1}/${target.getDate()} ${pad2(target.getHours())}:${pad2(target.getMinutes())}`;
   }
   return `${target.getFullYear()}-${pad2(target.getMonth() + 1)}-${pad2(target.getDate())}`;
+}
+
+export function formatCountdown(iso: string | undefined, now: Date = new Date()): string {
+  if (!iso) return '?';
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return '?';
+  const secs = Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remMin = mins % 60;
+  if (hrs < 24) return remMin > 0 ? `${hrs}h${remMin}m` : `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  const remHr = hrs % 24;
+  return remHr > 0 ? `${days}d${remHr}h` : `${days}d`;
 }
 
 function isNonEmptyString(v: unknown): v is string {
@@ -107,6 +175,68 @@ export function parseBarSpec(raw: string | undefined): BarSpec | null {
   return null;
 }
 
+// Convert "#RGB" or "#RRGGBB" → 24-bit ANSI foreground escape.
+// Accepts both shorthand and full hex; case-insensitive.
+export function hexToAnsi(hex: string): string | null {
+  const m = hex.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const h = m[1];
+  let r: number;
+  let g: number;
+  let b: number;
+  if (h.length === 3) {
+    r = parseInt(h[0] + h[0], 16);
+    g = parseInt(h[1] + h[1], 16);
+    b = parseInt(h[2] + h[2], 16);
+  } else {
+    r = parseInt(h.slice(0, 2), 16);
+    g = parseInt(h.slice(2, 4), 16);
+    b = parseInt(h.slice(4, 6), 16);
+  }
+  return `\x1b[38;2;${r};${g};${b}m`;
+}
+
+// Parse color ramp like "0:green,60:#ffaa00,85:red".
+// Color tokens may be named (see COLOR_NAMES), 'none', or hex (#RGB / #RRGGBB).
+// Each rule's escape is resolved here so render-time lookup is O(1).
+// Returns null on malformed input so callers can fall back to defaults.
+export function parseColorRamp(spec: string | undefined): ColorRamp | null {
+  if (!spec) return null;
+  const parts = spec.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  const rules: ColorRule[] = [];
+  for (const p of parts) {
+    const m = p.match(/^(\d+(?:\.\d+)?):(\S+)$/);
+    if (!m) return null;
+    const min = parseFloat(m[1]);
+    const token = m[2];
+    let ansi: string | null;
+    if (token === 'none') {
+      ansi = null;
+    } else if (token.startsWith('#')) {
+      ansi = hexToAnsi(token);
+      if (ansi === null) return null;
+    } else if (token in COLOR_MAP) {
+      ansi = COLOR_MAP[token] || null;
+    } else {
+      return null;
+    }
+    rules.push({ min, ansi });
+  }
+  rules.sort((a, b) => a.min - b.min);
+  return rules;
+}
+
+export function colorFromRamp(util: number, ramp: ColorRamp | undefined): string | null {
+  if (!ramp || ramp.length === 0) return null;
+  let picked: string | null = null;
+  for (const r of ramp) {
+    if (util >= r.min) picked = r.ansi;
+    else break;
+  }
+  return picked;
+}
+
 function splitText(s: string): string[] {
   return Array.from(s);
 }
@@ -132,7 +262,7 @@ export function formatBar(
     if (!useColor) return active + inactive;
     const activePart = activeColor && active ? paint(active, activeColor, true) : active;
     const inactivePart =
-      inactive && spec.emptyStyle !== 'plain' ? paint(inactive, ANSI.dim, true) : inactive;
+      inactive && spec.emptyStyle !== 'plain' ? paint(inactive, COLOR_MAP.dim, true) : inactive;
     return activePart + inactivePart;
   }
   if (spec?.mode === 'frames') {
@@ -143,19 +273,21 @@ export function formatBar(
   return '█'.repeat(filled) + '░'.repeat(Math.max(0, width - filled));
 }
 
-function fiveHourColor(util: number): string | null {
-  if (util < 60) return ANSI.green;
-  if (util < 85) return ANSI.yellow;
-  return ANSI.red;
-}
-
-function weekColor(util: number): string | null {
-  return util >= 80 ? ANSI.boldRed : null;
-}
-
 function paint(text: string, color: string | null, useColor: boolean): string {
   if (!useColor || !color) return text;
-  return `${color}${text}${ANSI.reset}`;
+  return `${color}${text}${ANSI_RESET}`;
+}
+
+// Tint mode colours the bar internally (active vs dim), so wrapping the whole
+// tier text in a single colour would double-paint it. This helper centralises
+// that decision.
+function applyTierPaint(text: string, color: string | null, opts: FormatOptions, tpl: string): string {
+  if (opts.barSpec?.mode === 'tint' && opts.color && tpl.includes('{bar}')) return text;
+  return paint(text, color, opts.color);
+}
+
+function prependProvider(text: string, planName: string | undefined, opts: FormatOptions): string {
+  return opts.showProviderName && planName ? `${planName} ${text}` : text;
 }
 
 function applyTemplate(tpl: string, vars: Record<string, string>): string {
@@ -171,16 +303,17 @@ export interface TierContext {
 function renderTier(ctx: TierContext, opts: FormatOptions): string {
   const pct = Math.round(ctx.tier.utilization);
   const tpl = opts.template ?? SUB_PRESET_TPL[opts.format];
-  const color = ctx.label === '5h' ? fiveHourColor(pct) : weekColor(pct);
+  const ramp = ctx.label === '5h' ? opts.colorRamp5h ?? DEFAULT_RAMP : opts.colorRampWk ?? DEFAULT_RAMP;
+  const color = colorFromRamp(pct, ramp);
   const text = applyTemplate(tpl, {
     label: ctx.label,
     percent: String(pct),
     bar: formatBar(pct, opts.barWidth, opts.barSpec, color, opts.color),
     expiry: formatExpiry(ctx.tier.resets_at, opts.now),
+    countdown: formatCountdown(ctx.tier.resets_at, opts.now),
     provider: ctx.provider,
   });
-  if (opts.barSpec?.mode === 'tint' && opts.color && tpl.includes('{bar}')) return text;
-  return paint(text, color, opts.color);
+  return applyTierPaint(text, color, opts, tpl);
 }
 
 function currencySymbol(unit: string): string {
@@ -207,37 +340,38 @@ export function renderSubscription(d: SubscriptionUsage, opts: FormatOptions): s
   if (d.seven_day) parts.push(renderTier({ tier: d.seven_day, label: 'Wk', provider }, opts));
   if (parts.length === 0) return '';
   const sep = opts.format === 'compact' && !opts.template ? ' ' : ' / ';
-  const body = parts.join(sep);
-  return opts.showProviderName && d.planName ? `${d.planName} ${body}` : body;
+  return prependProvider(parts.join(sep), d.planName, opts);
 }
 
 export function renderBalance(d: BalanceUsage, opts: FormatOptions): string {
   if (d.isValid === false && d.invalidMessage) {
-    const msg = paint(d.invalidMessage, ANSI.red, opts.color);
-    return opts.showProviderName && d.planName ? `${d.planName} ${msg}` : msg;
+    return prependProvider(paint(d.invalidMessage, COLOR_MAP.red, opts.color), d.planName, opts);
   }
-  const amount =
-    typeof d.total === 'number'
-      ? `${fmtMoney(d.remaining, d.unit)}/${fmtMoney(d.total, d.unit)}`
-      : fmtMoney(d.remaining, d.unit);
-  const usedPct = typeof d.total === 'number' && d.total > 0
-    ? ((d.total - d.remaining) / d.total) * 100
-    : 0;
+  // No total → progress is meaningless. Force the compact template so a
+  // bar-bearing preset doesn't degrade to an empty "[] $34.20".
+  if (typeof d.total !== 'number') {
+    const tpl = opts.template ?? BAL_PRESET_TPL.compact;
+    const text = applyTemplate(tpl, {
+      label: '', percent: '0', bar: '', expiry: '', countdown: '',
+      provider: d.planName ?? '',
+      amount: fmtMoney(d.remaining, d.unit),
+    });
+    return prependProvider(applyTierPaint(text, null, opts, tpl), d.planName, opts);
+  }
+  const total = d.total;
+  const usedPct = total > 0 ? ((total - d.remaining) / total) * 100 : 0;
   const tpl = opts.template ?? BAL_PRESET_TPL[opts.format];
-  const color = typeof d.total === 'number' ? fiveHourColor(usedPct) : null;
+  const color = colorFromRamp(usedPct, opts.colorRampBalance ?? DEFAULT_RAMP);
   const text = applyTemplate(tpl, {
     label: '',
     percent: String(Math.round(usedPct)),
-    bar: typeof d.total === 'number' ? formatBar(usedPct, opts.barWidth, opts.barSpec, color, opts.color) : '',
+    bar: formatBar(usedPct, opts.barWidth, opts.barSpec, color, opts.color),
     expiry: '',
+    countdown: '',
     provider: d.planName ?? '',
-    amount,
+    amount: `${fmtMoney(d.remaining, d.unit)}/${fmtMoney(total, d.unit)}`,
   });
-  if (opts.barSpec?.mode === 'tint' && opts.color && tpl.includes('{bar}')) {
-    return opts.showProviderName && d.planName ? `${d.planName} ${text}` : text;
-  }
-  const colored = paint(text, color, opts.color);
-  return opts.showProviderName && d.planName ? `${d.planName} ${colored}` : colored;
+  return prependProvider(applyTierPaint(text, color, opts, tpl), d.planName, opts);
 }
 
 export function renderUsage(data: NormalizedUsage | null | undefined, opts: FormatOptions): string {

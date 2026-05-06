@@ -49,7 +49,7 @@ A Claude Code statusline is just a shell command — its stdout is rendered to t
 
 1. **stdin `rate_limits`** — Claude Code now passes a `rate_limits` object to statusline stdin when you're a Claude.ai subscriber. Zero auth, zero network.
 2. **Local cache** — `/tmp/cc-oauth-usage.json`, 30 s TTL on success, 60 s on auth failure (so a stale token doesn't hammer the API).
-3. **Provider HTTP query** — picked from `ANTHROPIC_BASE_URL`. For Anthropic, the OAuth token is read from your macOS keychain (or `~/.claude/.credentials.json`). For the rest, `ANTHROPIC_AUTH_TOKEN` from the env.
+3. **Provider HTTP query** — picked from `ANTHROPIC_BASE_URL`. For Anthropic, the OAuth token is read by platform: macOS keychain → Windows Credential Manager → `~/.claude/.credentials.json`. For the rest, `ANTHROPIC_AUTH_TOKEN` from the env.
 
 ## Supported providers
 
@@ -178,7 +178,7 @@ base url:      <not set, defaults to anthropic>
 
 ## Privacy & API stability
 
-This tool calls **two undocumented Anthropic endpoints**: `/api/oauth/usage` (subscription quota) and reads OAuth tokens from the local macOS keychain. The `cc-switch` project (Tauri/Rust) has used the same approach in production for months. **Both endpoints may change without notice** — open an issue if you see a regression.
+This tool calls **one undocumented Anthropic endpoint**: `/api/oauth/usage` (subscription quota), and reads OAuth tokens from local OS-native credential stores (macOS keychain, Windows Credential Manager, or the JSON file). The `cc-switch` project (Tauri/Rust) has used the same approach in production for months. **The endpoint may change without notice** — open an issue if you see a regression.
 
 Tokens are read **only on your machine**. Nothing is uploaded anywhere. The tool makes one HTTPS request per refresh interval to the provider you've configured (or zero, when `rate_limits` is in stdin).
 
@@ -186,7 +186,7 @@ For non-Anthropic providers, the same is true: the API key from `ANTHROPIC_AUTH_
 
 ## Why no `jq` / `curl` dependency?
 
-Other statusline tools (e.g. `ccusage`) shell out to `jq` and `curl`. This one is pure Node.js (built-in `fetch` from Node 18+, `child_process` for the macOS keychain only). One `npm install -g` and you're done — no system tooling required.
+Other statusline tools (e.g. `ccusage`) shell out to `jq` and `curl`. This one is pure Node.js (built-in `fetch` from Node 18+, `child_process` only for the macOS keychain or Windows Credential Manager call). One `npm install -g` and you're done — no system tooling required, works on macOS / Linux / Windows.
 
 ## Acknowledgements
 

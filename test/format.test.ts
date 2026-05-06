@@ -208,14 +208,26 @@ test('balance bar: uses (total-remaining)/total ratio', () => {
   );
 });
 
-test('balance without total: bar omitted', () => {
+test('balance without total: any bar-bearing preset falls back to amount-only', () => {
   const noTotal: BalanceUsage = {
     kind: 'balance',
     remaining: 34.2,
     unit: 'CNY',
     planName: 'DeepSeek',
   };
-  assert.equal(renderUsage(noTotal, opts({ format: 'bar' })), '[] ¥34.20');
+  assert.equal(renderUsage(noTotal, opts({ format: 'bar' })), '¥34.20');
+  assert.equal(renderUsage(noTotal, opts({ format: 'bar-time' })), '¥34.20');
+  assert.equal(renderUsage(noTotal, opts({ format: 'bar-countdown' })), '¥34.20');
+});
+
+test('balance without total: explicit template is respected (no auto-fallback)', () => {
+  const noTotal: BalanceUsage = {
+    kind: 'balance',
+    remaining: 34.2,
+    unit: 'CNY',
+    planName: 'DeepSeek',
+  };
+  assert.equal(renderUsage(noTotal, opts({ template: '[{bar}] {amount}' })), '[] ¥34.20');
 });
 
 test('balance with provider name prefix', () => {

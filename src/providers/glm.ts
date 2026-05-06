@@ -56,7 +56,7 @@ export const glmAdapter: UsageAdapter = {
       'Accept-Language': 'en-US,en',
     });
     if (res.authFailed) return { ok: false, authFailed: true, error: res.error };
-    if (!res.ok || !res.body) return { ok: false, error: res.error ?? 'request failed' };
+    if (!res.ok || !res.body) return { ok: false, status: res.status, error: res.error ?? 'request failed' };
     const parsed = parseGlm(res.body);
     if (!parsed) return { ok: false, error: 'invalid response shape' };
     if ('error' in parsed) return { ok: false, error: parsed.error };

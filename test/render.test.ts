@@ -6,7 +6,6 @@ const RESET = '\x1b[0m';
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const RED = '\x1b[31m';
-const BOLD_RED = '\x1b[1;31m';
 
 test('render: empty / null data returns empty string', () => {
   assert.equal(render(null), '');
@@ -44,14 +43,20 @@ test('render: 5h color thresholds (<60 green, <85 yellow, >=85 red)', () => {
   assert.ok(make(100).startsWith(RED));
 });
 
-test('render: week color (>=80 bold red, else default)', () => {
-  const lowWk = render({ five_hour: { utilization: 10 }, seven_day: { utilization: 79 } });
-  assert.ok(!lowWk.includes(BOLD_RED));
-  assert.ok(lowWk.endsWith('Wk 79%'));
+test('render: weekly tier now also colored using same default ramp', () => {
+  const lowWk = render({ five_hour: { utilization: 10 }, seven_day: { utilization: 10 } });
+  // 5h piece is green-wrapped, Wk piece must also be green-wrapped
+  assert.ok(lowWk.includes(`${GREEN}Wk 10%${RESET}`));
+});
 
-  const highWk = render({ five_hour: { utilization: 10 }, seven_day: { utilization: 80 } });
-  assert.ok(highWk.includes(BOLD_RED));
-  assert.ok(highWk.endsWith(`${BOLD_RED}Wk 80%${RESET}`));
+test('render: weekly tier yellow band (>=60, <85)', () => {
+  const out = render({ five_hour: { utilization: 10 }, seven_day: { utilization: 70 } });
+  assert.ok(out.includes(`${YELLOW}Wk 70%${RESET}`));
+});
+
+test('render: weekly tier red band (>=85)', () => {
+  const out = render({ five_hour: { utilization: 10 }, seven_day: { utilization: 90 } });
+  assert.ok(out.includes(`${RED}Wk 90%${RESET}`));
 });
 
 test('render: float utilization (stdin used_percentage) is rounded', () => {
@@ -62,7 +67,7 @@ test('render: float utilization (stdin used_percentage) is rounded', () => {
   assert.equal(out, '5h 24% Wk 41%');
 });
 
-test('render: full output shape with colors at boundary', () => {
+test('render: full output shape with colors on both tiers', () => {
   const out = render({ five_hour: { utilization: 43 }, seven_day: { utilization: 21 } });
-  assert.equal(out, `${GREEN}5h 43%${RESET} Wk 21%`);
+  assert.equal(out, `${GREEN}5h 43%${RESET} ${GREEN}Wk 21%${RESET}`);
 });

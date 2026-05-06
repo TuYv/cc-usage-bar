@@ -32,6 +32,10 @@ export interface AdapterResult {
   ok: boolean;
   data?: NormalizedUsage;
   authFailed?: boolean;
+  // HTTP status from the upstream provider, when the failure came from a real
+  // network call. Local errors (missing credentials, missing env, parse) leave
+  // this undefined so the cache layer can distinguish transient from permanent.
+  status?: number;
   error?: string;
 }
 

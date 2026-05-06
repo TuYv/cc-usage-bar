@@ -51,7 +51,7 @@ Claude Code 的 statusline 本质上是一条 shell 命令，命令的 stdout �
 
 1. **stdin `rate_limits`**：Claude Code 会把订阅用户的 `rate_limits` 传给 statusline，无需鉴权、无需网络。
 2. **本地缓存**：`/tmp/cc-oauth-usage.json`，成功缓存 30 秒，鉴权失败缓存 60 秒。
-3. **Provider HTTP 查询**：根据 `ANTHROPIC_BASE_URL` 自动选择 provider。Anthropic 会读取 macOS keychain 或 `~/.claude/.credentials.json`；其他 provider 使用环境变量 `ANTHROPIC_AUTH_TOKEN`。
+3. **Provider HTTP 查询**：根据 `ANTHROPIC_BASE_URL` 自动选择 provider。Anthropic 按平台读取凭证：macOS 钥匙串 → Windows Credential Manager → `~/.claude/.credentials.json`；其他 provider 使用环境变量 `ANTHROPIC_AUTH_TOKEN`。
 
 ## 支持的 Provider
 
@@ -185,7 +185,7 @@ base url:      <not set, defaults to anthropic>
 
 ## 隐私与 API 稳定性
 
-Anthropic 订阅用量依赖未公开接口 `/api/oauth/usage`，并会从本机 macOS keychain 或 `~/.claude/.credentials.json` 读取 Claude Code OAuth token。这些接口可能变化。
+Anthropic 订阅用量依赖未公开接口 `/api/oauth/usage`，并按平台读取本机 OAuth token：macOS 钥匙串、Windows Credential Manager、或 `~/.claude/.credentials.json`。这些接口可能变化。
 
 Token 只在你的机器上读取，不会上传到本项目的任何服务。工具只会请求你配置的 provider。使用 stdin `rate_limits` 时不需要网络。
 
@@ -193,7 +193,7 @@ Token 只在你的机器上读取，不会上传到本项目的任何服务。�
 
 ## 为什么不依赖 jq / curl
 
-这个工具是纯 Node.js 实现，Node 18+ 自带 `fetch`，只在 macOS 读取 keychain 时使用 `child_process`。安装后直接可用，不需要额外安装 `jq` 或 `curl`。
+这个工具是纯 Node.js 实现，Node 18+ 自带 `fetch`，只在读取 macOS 钥匙串或 Windows Credential Manager 时使用 `child_process`。安装后直接可用，不需要额外安装 `jq` 或 `curl`，跨 macOS / Linux / Windows。
 
 ## 致谢
 

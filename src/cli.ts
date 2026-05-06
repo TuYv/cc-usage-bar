@@ -17,7 +17,7 @@ import {
   InstallOptions,
 } from './settings';
 import { run } from './fetch';
-import { isValidPreset, FORMAT_PRESETS, parseBarSpec } from './format';
+import { formatCountdown, isValidPreset, FORMAT_PRESETS, parseBarSpec } from './format';
 
 function readPkgVersion(): string {
   try {
@@ -27,21 +27,6 @@ function readPkgVersion(): string {
   } catch {
     return '0.0.0';
   }
-}
-
-function formatCountdown(iso: string | undefined): string {
-  if (!iso) return 'unknown';
-  const target = new Date(iso).getTime();
-  if (Number.isNaN(target)) return 'unknown';
-  const diffMs = target - Date.now();
-  if (diffMs <= 0) return 'now';
-  const totalMin = Math.floor(diffMs / 60_000);
-  const days = Math.floor(totalMin / (60 * 24));
-  const hours = Math.floor((totalMin % (60 * 24)) / 60);
-  const mins = totalMin % 60;
-  if (days > 0) return `${days}d ${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m`;
 }
 
 function loadSettingsOrExit() {
@@ -179,13 +164,13 @@ program
   .option(
     '--format <preset>',
     `render preset (${FORMAT_PRESETS.join(' | ')})`,
-    'compact'
+    'bar-countdown'
   )
   .option('--bar-width <n>', 'bar width when format includes a bar (1-50)', '10')
   .option('--bar-spec <json>', 'custom bar JSON spec (cells, tint, or frames)')
   .action(async (opts: { force?: boolean; format?: string; barWidth?: string; barSpec?: string }) => {
     const installOpts: InstallOptions = {};
-    if (opts.format && opts.format !== 'compact') {
+    if (opts.format && opts.format !== 'bar-countdown') {
       if (!isValidPreset(opts.format)) {
         console.error(`error: --format must be one of ${FORMAT_PRESETS.join(', ')}`);
         process.exit(1);
@@ -223,6 +208,26 @@ program
   .description('Diagnose: token source, current usage, reset countdowns, cache state')
   .action(async () => {
     await runStatus();
+  });
+
+program
+  .command('agents')
+  .description('Print the AI-readable install guide (for piping into Claude Code, Cursor, etc.)')
+  .action(() => {
+    const candidates = [
+      path.join(__dirname, '..', '..', 'AGENTS.md'),
+      path.join(__dirname, '..', 'AGENTS.md'),
+    ];
+    for (const p of candidates) {
+      try {
+        process.stdout.write(fs.readFileSync(p, 'utf8'));
+        return;
+      } catch {
+        // try next
+      }
+    }
+    console.error('AGENTS.md not found in package.');
+    process.exit(1);
   });
 
 program.parseAsync(process.argv).catch((e) => {
