@@ -165,7 +165,7 @@ export function parseBarSpec(raw: string | undefined): BarSpec | null {
     if (!isNonEmptyString(obj.text)) return null;
     const out: BarSpec = { mode: 'tint', text: obj.text };
     if (obj.emptyStyle === 'plain' || obj.emptyStyle === 'dim') out.emptyStyle = obj.emptyStyle;
-    if (obj.style === 'fg' || obj.style === 'reverse') out.style = obj.style;
+    out.style = obj.style === 'fg' ? 'fg' : 'reverse';
     return out;
   }
   if (obj.mode === 'frames') {

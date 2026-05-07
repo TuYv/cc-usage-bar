@@ -20,6 +20,36 @@ Or, with `--format=bar-time`:
 [█████░░░░░] 47% until 18:00 / [██████░░░░] 59% until 5/9 09:00
 ```
 
+## Quick usage
+
+### Method 1: Command line
+
+```bash
+npm install -g cc-usage-bar@latest
+cc-usage-bar install --format=bar-countdown
+```
+
+If you already have a Claude Code statusline command, the installer keeps it as the prefix and appends the usage bar. Run diagnostics any time with:
+
+```bash
+cc-usage-bar status
+```
+
+### Method 2: Ask an AI assistant
+
+In Claude Code, Cursor, Codex, or another coding assistant, say:
+
+```text
+Install cc-usage-bar for my Claude Code statusline.
+Keep my existing statusline prefix and use the bar-countdown format.
+```
+
+If the assistant needs exact instructions, give it the AI-readable guide:
+
+```bash
+npx cc-usage-bar@latest agents
+```
+
 ## Install
 
 ```bash
@@ -111,16 +141,16 @@ cc-usage-bar install --format=bar-time \
   --bar-spec='{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}'
 ```
 
-`tint` keeps the whole text visible and colors the completed prefix while dimming the rest:
+`tint` keeps the whole text visible. By default the completed prefix is rendered as a reversed-color block (high contrast), and the rest is dimmed:
 
 ```json
 {"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}
 ```
 
-For stronger contrast, add `style:"reverse"` so the completed prefix is rendered as a reversed-color block:
+If you prefer the older "color the foreground only" look, set `style:"fg"`:
 
 ```json
-{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"reverse"}
+{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"fg"}
 ```
 
 `cells` replaces the default block characters:

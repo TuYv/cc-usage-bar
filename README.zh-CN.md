@@ -22,6 +22,36 @@
 [█████░░░░░] 47% until 18:00 / [██████░░░░] 59% until 5/9 09:00
 ```
 
+## 快速使用
+
+### 方法一：正常命令行
+
+```bash
+npm install -g cc-usage-bar@latest
+cc-usage-bar install --format=bar-countdown
+```
+
+如果你已经有自己的 Claude Code statusline 命令，安装器会把它保留为前缀，再追加用量条。需要诊断时运行：
+
+```bash
+cc-usage-bar status
+```
+
+### 方法二：直接和大模型交流
+
+在 Claude Code、Cursor、Codex 或其他编程助手里直接说：
+
+```text
+请安装 cc-usage-bar 并帮我配置 Claude Code statusline。
+保留我原来的 statusline 前缀，使用 bar-countdown 格式。
+```
+
+如果大模型需要更精确的操作说明，把下面命令输出的 AI 可读安装指南发给它：
+
+```bash
+npx cc-usage-bar@latest agents
+```
+
 ## 安装
 
 ```bash
@@ -111,7 +141,7 @@ cc-usage-bar install --format <preset> --bar-width <n>
 
 #### tint：整段文字始终可见
 
-推荐给颜文字、短句、logo 风格文本。已完成部分会染色，未完成部分会变暗，但整段文字一直可见：
+推荐给颜文字、短句、logo 风格文本。整段文字一直可见，**默认**已完成部分会用反色底块（reverse）增强对比，未完成部分变暗：
 
 ```bash
 cc-usage-bar install --format=bar-time \
@@ -122,10 +152,10 @@ cc-usage-bar install --format=bar-time \
 {"mode":"tint","text":"Ciallo～(∠・ω< )⌒★"}
 ```
 
-如果想让完成部分更像“填充底块”，可以加 `style:"reverse"`，完成部分会用反色块增强对比：
+如果更喜欢"只给完成部分上前景色、不反色"的旧风格，显式加 `style:"fg"`：
 
 ```json
-{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"reverse"}
+{"mode":"tint","text":"Ciallo～(∠・ω< )⌒★","style":"fg"}
 ```
 
 #### cells：替换默认块字符

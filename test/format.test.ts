@@ -78,11 +78,17 @@ test('parseBarSpec: accepts cells, tint, and frames specs', () => {
   assert.deepEqual(parseBarSpec('{"mode":"tint","text":"Ciallo"}'), {
     mode: 'tint',
     text: 'Ciallo',
+    style: 'reverse',
   });
   assert.deepEqual(parseBarSpec('{"mode":"tint","text":"Ciallo","style":"reverse"}'), {
     mode: 'tint',
     text: 'Ciallo',
     style: 'reverse',
+  });
+  assert.deepEqual(parseBarSpec('{"mode":"tint","text":"Ciallo","style":"fg"}'), {
+    mode: 'tint',
+    text: 'Ciallo',
+    style: 'fg',
   });
   assert.deepEqual(parseBarSpec('{"mode":"frames","frames":["a","b"]}'), {
     mode: 'frames',

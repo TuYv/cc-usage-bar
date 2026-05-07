@@ -171,11 +171,11 @@ CC_USAGE_COLORS_BALANCE='0:cyan,60:yellow,90:red'
 # 自定义填充/空槽字符（cells）
 --bar-spec='{"mode":"cells","filled":"▰","empty":"▱","width":12}'
 
-# 单色渐变（tint）—— 完成部分上色，剩余部分变暗
---bar-spec='{"mode":"tint","text":"████████","emptyStyle":"dim"}'
+# 单色渐变（tint）—— 默认 reverse：完成部分反色底块，剩余部分变暗
+--bar-spec='{"mode":"tint","text":"Ciallo~(∠・ω< )⌒★"}'
 
-# 反色填充（reverse）—— 完成部分用反色底块增强对比
---bar-spec='{"mode":"tint","text":"Ciallo~(∠・ω< )⌒★","style":"reverse"}'
+# 想要旧的"只染前景"效果，显式加 style:"fg"
+--bar-spec='{"mode":"tint","text":"████████","style":"fg","emptyStyle":"dim"}'
 
 # 动画帧（frames）—— 按百分比从帧序列里挑一帧
 --bar-spec='{"mode":"frames","frames":["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]}'
