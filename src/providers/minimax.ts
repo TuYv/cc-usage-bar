@@ -2,12 +2,14 @@ import { httpGetJson } from './http';
 import { AdapterResult, ProviderEnv, SubscriptionUsage, UsageAdapter } from './types';
 
 interface MinimaxRemains {
-  current_interval_total_count?: number;
-  current_interval_usage_count?: number;
-  end_time?: number; // ms
-  current_weekly_total_count?: number;
-  current_weekly_usage_count?: number;
-  weekly_end_time?: number; // ms
+  model_name?: string;
+  // Newer schema: REMAINING percent (0-100), not counts. used% = 100 - remaining.
+  current_interval_remaining_percent?: number;
+  current_weekly_remaining_percent?: number;
+  // Weekly bucket only exists when status === 1 (3 = plan has no weekly cap).
+  current_weekly_status?: number;
+  end_time?: number; // ms — 5h window reset
+  weekly_end_time?: number; // ms — weekly window reset
 }
 
 interface MinimaxResponse {
@@ -15,12 +17,8 @@ interface MinimaxResponse {
   model_remains?: MinimaxRemains[];
 }
 
-function tier(total: number | undefined, used: number | undefined, endMs: number | undefined) {
-  if (typeof total !== 'number' || typeof used !== 'number' || total <= 0) return undefined;
-  return {
-    utilization: ((total - (total - used)) / total) * 100, // = used / total * 100
-    resets_at: typeof endMs === 'number' ? new Date(endMs).toISOString() : undefined,
-  };
+function isoFromMs(ms: number | undefined): string | undefined {
+  return typeof ms === 'number' ? new Date(ms).toISOString() : undefined;
 }
 
 export function parseMinimax(body: unknown): SubscriptionUsage | { error: string } | null {
@@ -30,13 +28,23 @@ export function parseMinimax(body: unknown): SubscriptionUsage | { error: string
   if (typeof code === 'number' && code !== 0) {
     return { error: r.base_resp?.status_msg ?? `MiniMax error ${code}` };
   }
-  const remains = r.model_remains?.[0];
-  if (!remains) return null;
+  if (!Array.isArray(r.model_remains)) return null;
+  // Only the "general" model carries the coding-plan quota; skip "video" etc.
+  const item = r.model_remains.find((m) => m && m.model_name === 'general');
+  if (!item) return null;
+
   const out: SubscriptionUsage = { kind: 'subscription', planName: 'MiniMax' };
-  const fh = tier(remains.current_interval_total_count, remains.current_interval_usage_count, remains.end_time);
-  if (fh) out.five_hour = fh;
-  const wk = tier(remains.current_weekly_total_count, remains.current_weekly_usage_count, remains.weekly_end_time);
-  if (wk) out.seven_day = wk;
+  const fhRemain = item.current_interval_remaining_percent;
+  if (typeof fhRemain === 'number') {
+    out.five_hour = { utilization: 100 - fhRemain, resets_at: isoFromMs(item.end_time) };
+  }
+  // Weekly tier is real only when status === 1; otherwise remaining_percent is meaningless.
+  if (item.current_weekly_status === 1) {
+    const wkRemain = item.current_weekly_remaining_percent;
+    if (typeof wkRemain === 'number') {
+      out.seven_day = { utilization: 100 - wkRemain, resets_at: isoFromMs(item.weekly_end_time) };
+    }
+  }
   if (!out.five_hour && !out.seven_day) return null;
   return out;
 }

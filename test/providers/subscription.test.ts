@@ -73,24 +73,104 @@ test('parseGlm: no TOKENS_LIMIT → null', () => {
   assert.equal(out, null);
 });
 
-test('parseMinimax: 5h + weekly from model_remains[0]', () => {
+test('parseMinimax: general bucket 5h + weekly from remaining_percent', () => {
+  // API reports REMAINING percent (0-100); usage = 100 - remaining.
   const out = parseMinimax({
     base_resp: { status_code: 0 },
     model_remains: [
       {
-        current_interval_total_count: 1000,
-        current_interval_usage_count: 200,
+        model_name: 'general',
+        current_interval_remaining_percent: 98,
+        current_weekly_remaining_percent: 95,
+        current_interval_status: 1,
+        current_weekly_status: 1,
         end_time: 1738425600000,
-        current_weekly_total_count: 10000,
-        current_weekly_usage_count: 4500,
+        weekly_end_time: 1738857600000,
+      },
+      { model_name: 'video', current_interval_remaining_percent: 100 },
+    ],
+  });
+  assert.ok(out && 'kind' in out);
+  assert.equal((out as any).planName, 'MiniMax');
+  assert.equal((out as any).five_hour?.utilization, 2); // 100 - 98
+  assert.equal((out as any).seven_day?.utilization, 5); // 100 - 95
+  assert.equal((out as any).five_hour?.resets_at, new Date(1738425600000).toISOString());
+  assert.equal((out as any).seven_day?.resets_at, new Date(1738857600000).toISOString());
+});
+
+test('parseMinimax: skips video, finds general in any position', () => {
+  const out = parseMinimax({
+    base_resp: { status_code: 0 },
+    model_remains: [
+      { model_name: 'video', current_interval_remaining_percent: 50, current_weekly_remaining_percent: 50 },
+      {
+        model_name: 'general',
+        current_interval_remaining_percent: 80,
+        current_weekly_remaining_percent: 70,
+        current_weekly_status: 1,
+      },
+    ],
+  });
+  assert.ok(out && 'kind' in out);
+  assert.equal((out as any).five_hour?.utilization, 20); // general, not video
+  assert.equal((out as any).seven_day?.utilization, 30);
+});
+
+test('parseMinimax: weekly_status != 1 → weekly tier skipped', () => {
+  // No-weekly-cap plans report current_weekly_status=3 with remaining_percent stuck at 100.
+  const out = parseMinimax({
+    base_resp: { status_code: 0 },
+    model_remains: [
+      {
+        model_name: 'general',
+        current_interval_remaining_percent: 99,
+        end_time: 1738425600000,
+        current_weekly_status: 3,
+        current_weekly_remaining_percent: 100,
         weekly_end_time: 1738857600000,
       },
     ],
   });
   assert.ok(out && 'kind' in out);
-  assert.equal((out as any).five_hour?.utilization, 20); // 200/1000*100
-  assert.equal((out as any).seven_day?.utilization, 45); // 4500/10000*100
-  assert.equal((out as any).five_hour?.resets_at, new Date(1738425600000).toISOString());
+  assert.equal((out as any).five_hour?.utilization, 1);
+  assert.equal((out as any).seven_day, undefined);
+});
+
+test('parseMinimax: missing weekly percent (status 1) → weekly skipped', () => {
+  const out = parseMinimax({
+    base_resp: { status_code: 0 },
+    model_remains: [
+      { model_name: 'general', current_interval_remaining_percent: 60, current_weekly_status: 1 },
+    ],
+  });
+  assert.ok(out && 'kind' in out);
+  assert.equal((out as any).five_hour?.utilization, 40);
+  assert.equal((out as any).seven_day, undefined);
+});
+
+test('parseMinimax: negative / over-100 remaining passes through (no clamp)', () => {
+  const out = parseMinimax({
+    base_resp: { status_code: 0 },
+    model_remains: [
+      {
+        model_name: 'general',
+        current_interval_remaining_percent: -5,
+        current_weekly_remaining_percent: 150,
+        current_weekly_status: 1,
+      },
+    ],
+  });
+  assert.ok(out && 'kind' in out);
+  assert.equal((out as any).five_hour?.utilization, 105); // 100 - (-5)
+  assert.equal((out as any).seven_day?.utilization, -50); // 100 - 150
+});
+
+test('parseMinimax: no general entry → null', () => {
+  const out = parseMinimax({
+    base_resp: { status_code: 0 },
+    model_remains: [{ model_name: 'video', current_interval_remaining_percent: 100 }],
+  });
+  assert.equal(out, null);
 });
 
 test('parseMinimax: business error → error envelope', () => {
