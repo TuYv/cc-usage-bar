@@ -1,6 +1,6 @@
 {
   "name": "cc-usage-bar",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Show your Claude Code subscription usage (5h / 7d, or balance) in the statusline. Supports Anthropic, Kimi, GLM, MiniMax, DeepSeek, StepFun, SiliconFlow, OpenRouter, Novita.",
   "keywords": [
     "claude",
