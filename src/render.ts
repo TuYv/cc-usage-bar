@@ -11,9 +11,13 @@ export interface UsageWindow {
   utilization?: number;
   resets_at?: string;
 }
+export interface ScopedWindow extends UsageWindow {
+  label: string;
+}
 export interface UsageData {
   five_hour?: UsageWindow;
   seven_day?: UsageWindow;
+  scoped?: ScopedWindow[];
 }
 
 export interface RenderOptions {
@@ -42,6 +46,14 @@ export function render(
   }
   if (typeof data.seven_day?.utilization === 'number') {
     sub.seven_day = { utilization: data.seven_day.utilization, resets_at: data.seven_day.resets_at };
+  }
+  const scoped = (data.scoped ?? []).filter((s) => typeof s.utilization === 'number');
+  if (scoped.length > 0) {
+    sub.scoped = scoped.map((s) => ({
+      label: s.label,
+      utilization: s.utilization as number,
+      resets_at: s.resets_at,
+    }));
   }
   return renderUsage(sub, toFormatOptions(opts));
 }

@@ -62,17 +62,44 @@ export async function readStdinJson(timeoutMs = STDIN_TIMEOUT_MS): Promise<unkno
   });
 }
 
+function normalizeStdinResetsAt(r: unknown): string | undefined {
+  if (typeof r === 'number' && Number.isFinite(r)) return new Date(r * 1000).toISOString();
+  if (typeof r === 'string' && r) return r;
+  return undefined;
+}
+
 function normalizeStdinTier(t: unknown) {
   if (!t || typeof t !== 'object') return null;
   const obj = t as Record<string, unknown>;
   const pct = obj.used_percentage;
   if (typeof pct !== 'number' || !Number.isFinite(pct)) return null;
   const out: { utilization: number; resets_at?: string } = { utilization: pct };
-  const r = obj.resets_at;
-  if (typeof r === 'number' && Number.isFinite(r)) {
-    out.resets_at = new Date(r * 1000).toISOString();
-  } else if (typeof r === 'string' && r) {
-    out.resets_at = r;
+  const resets = normalizeStdinResetsAt(obj.resets_at);
+  if (resets) out.resets_at = resets;
+  return out;
+}
+
+// Claude Code (as of 2.1.322) does not put model_scoped into statusline stdin;
+// its SDK usage response does, with `utilization` (not `used_percentage` like
+// five_hour/seven_day) and an ISO-string resets_at. Parsed here in case the
+// statusline input adopts the same field.
+function normalizeStdinScoped(list: unknown) {
+  if (!Array.isArray(list)) return [];
+  const out: Array<{ label: string; utilization: number; resets_at?: string }> = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Record<string, unknown>;
+    const label = obj.display_name;
+    if (typeof label !== 'string' || !label) continue;
+    const pct = typeof obj.utilization === 'number' ? obj.utilization : obj.used_percentage;
+    if (typeof pct !== 'number' || !Number.isFinite(pct)) continue;
+    const tier: { label: string; utilization: number; resets_at?: string } = {
+      label,
+      utilization: pct,
+    };
+    const resets = normalizeStdinResetsAt(obj.resets_at);
+    if (resets) tier.resets_at = resets;
+    out.push(tier);
   }
   return out;
 }
@@ -87,6 +114,8 @@ export function extractFromStdin(json: unknown): UsageData | null {
   if (fh) result.five_hour = fh;
   const sd = normalizeStdinTier(obj.seven_day);
   if (sd) result.seven_day = sd;
+  const scoped = normalizeStdinScoped(obj.model_scoped);
+  if (scoped.length > 0) result.scoped = scoped;
   return Object.keys(result).length > 0 ? result : null;
 }
 
@@ -98,6 +127,11 @@ function stdinAsSubscription(d: UsageData | null): SubscriptionUsage | null {
   }
   if (typeof d.seven_day?.utilization === 'number') {
     out.seven_day = { utilization: d.seven_day.utilization, resets_at: d.seven_day.resets_at };
+  }
+  if (d.scoped && d.scoped.length > 0) {
+    out.scoped = d.scoped
+      .filter((s) => typeof s.utilization === 'number')
+      .map((s) => ({ label: s.label, utilization: s.utilization as number, resets_at: s.resets_at }));
   }
   return out;
 }

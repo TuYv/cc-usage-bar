@@ -310,13 +310,35 @@ function applyTemplate(tpl: string, vars: Record<string, string>): string {
 
 export interface TierContext {
   tier: SubscriptionTier;
-  label: '5h' | 'Wk';
+  // '5h' | 'Wk' for the built-in windows, or a server-supplied model bucket
+  // name (e.g. 'Fable') for scoped weekly quotas.
+  label: string;
   provider: string;
+  // Scoped tiers render as "{label} {percent}%" regardless of the preset —
+  // no bar (a third bar crowds the statusline), and the label stays because a
+  // bare percent after "/" would be unreadable in the label-free bar presets.
+  scoped?: boolean;
+  // Additionally drop the "until {expiry}" / "in {countdown}" suffix — used
+  // when the scoped tier's reset time duplicates the Wk tier's.
+  omitTime?: boolean;
+}
+
+// Template for a scoped tier under a given preset: compact core, plus the
+// preset family's time suffix only when the reset differs from Wk's.
+function scopedPresetTpl(format: FormatPreset, omitTime: boolean): string {
+  let tpl = '{label} {percent}%';
+  if (!omitTime) {
+    if (format === 'time' || format === 'bar-time') tpl += ' until {expiry}';
+    else if (format === 'countdown' || format === 'bar-countdown') tpl += ' in {countdown}';
+  }
+  return tpl;
 }
 
 function renderTier(ctx: TierContext, opts: FormatOptions): string {
   const pct = Math.round(ctx.tier.utilization);
-  const tpl = opts.template ?? SUB_PRESET_TPL[opts.format];
+  const tpl =
+    opts.template ??
+    (ctx.scoped ? scopedPresetTpl(opts.format, ctx.omitTime ?? false) : SUB_PRESET_TPL[opts.format]);
   const ramp = ctx.label === '5h' ? opts.colorRamp5h ?? DEFAULT_RAMP : opts.colorRampWk ?? DEFAULT_RAMP;
   const color = colorFromRamp(pct, ramp);
   const vars = {
@@ -347,9 +369,38 @@ function fmtMoney(n: number, unit: string): string {
   return sym ? `${sym}${n.toFixed(2)}` : `${n.toFixed(2)} ${unit}`;
 }
 
+// Two reset timestamps within a minute of each other are the same reset —
+// the API reports Wk and scoped weekly resets with sub-second jitter.
+function sameReset(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return false;
+  return Math.abs(ta - tb) <= 60_000;
+}
+
 export function renderSubscription(d: SubscriptionUsage, opts: FormatOptions): string {
   const provider = d.planName ?? '';
   const parts: string[] = [];
+  // Model-scoped weekly quotas (e.g. Fable) render first — as a compact
+  // "{label} {percent}%" (no third bar, and no time when the reset duplicates
+  // Wk's, which it usually does). Leading placement keeps the short segment
+  // near the front of the statusline instead of at the far right where a wide
+  // line can push it off-screen.
+  for (const s of d.scoped ?? []) {
+    parts.push(
+      renderTier(
+        {
+          tier: s,
+          label: s.label,
+          provider,
+          scoped: true,
+          omitTime: sameReset(s.resets_at, d.seven_day?.resets_at),
+        },
+        opts
+      )
+    );
+  }
   if (d.five_hour) parts.push(renderTier({ tier: d.five_hour, label: '5h', provider }, opts));
   if (d.seven_day) parts.push(renderTier({ tier: d.seven_day, label: 'Wk', provider }, opts));
   if (parts.length === 0) return '';

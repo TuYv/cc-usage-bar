@@ -4,7 +4,7 @@
 
 ## 1. 这个包是什么
 
-`cc-usage-bar` 把 Claude Code 订阅用量（5 小时滑窗 + 7 天滑窗）渲染到 statusline。也支持余额型 provider（Kimi / GLM / MiniMax / DeepSeek / StepFun / SiliconFlow / OpenRouter / Novita）。
+`cc-usage-bar` 把 Claude Code 订阅用量（5 小时滑窗 + 7 天滑窗，外加按模型单独计算的周额度，比如 Fable）渲染到 statusline。也支持余额型 provider（Kimi / GLM / MiniMax / DeepSeek / StepFun / SiliconFlow / OpenRouter / Novita）。
 
 **核心 bin**：
 
@@ -199,6 +199,7 @@ CC_USAGE_COLORS_BALANCE='0:cyan,60:yellow,90:red'
 - 鉴权失败缓存 60 秒
 - 限流（429）/ 5xx 缓存 60 秒（v0.3.0 起）—— 防止重试风暴
 - Claude Code 注入 stdin `rate_limits` 时直接用，**0 次** API 调用
+- 按模型的周额度（如 Fable）只在数据来自 API 时显示（比如加了 `--no-stdin`）。Claude Code（截至 2.1.322）给 statusline 的 stdin 里没有这一项，所以走 stdin 时不显示
 
 诊断：`CC_USAGE_LOG=/tmp/ccu.log` 让 `cc-usage-fetch` 每次写一行 JSON（`source` / `cacheStatus` / `error`）。
 

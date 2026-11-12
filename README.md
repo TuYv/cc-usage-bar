@@ -97,7 +97,7 @@ Provider detection runs against `ANTHROPIC_BASE_URL` (set by Claude Code from `s
 | Balance | OpenRouter | `openrouter.ai` |
 | Balance | Novita | `api.novita.ai` |
 
-Subscription mode renders `5h X% Wk Y%`. Balance mode renders `¥34.20` or `$5.88/$10.00`. Unknown providers render nothing (no error in the statusline).
+Subscription mode renders `5h X% Wk Y%`. When the data comes from the usage API (e.g. with `--no-stdin`) and your plan has a model-scoped weekly quota, it adds one segment per quota (e.g. `Fable 7%`); Claude Code's statusline stdin (as of 2.1.322) does not include these quotas. Balance mode renders `¥34.20` or `$5.88/$10.00`. Unknown providers render nothing (no error in the statusline).
 
 ## Render presets
 

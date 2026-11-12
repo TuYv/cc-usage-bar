@@ -21,6 +21,54 @@ test('parseAnthropic: missing both → null', () => {
   assert.equal(parseAnthropic(null), null);
 });
 
+test('parseAnthropic: model-scoped weekly limit (Fable) from limits array', () => {
+  const out = parseAnthropic({
+    five_hour: { utilization: 41, resets_at: '2026-09-02T05:39:59Z' },
+    seven_day: { utilization: 5, resets_at: '2026-09-06T23:59:59Z' },
+    limits: [
+      { kind: 'session', group: 'session', percent: 41, resets_at: '2026-09-02T05:39:59Z', scope: null },
+      { kind: 'weekly_all', group: 'weekly', percent: 5, resets_at: '2026-09-06T23:59:59Z', scope: null },
+      {
+        kind: 'weekly_scoped',
+        group: 'weekly',
+        percent: 7,
+        resets_at: '2026-09-06T23:59:59Z',
+        scope: { model: { id: null, display_name: 'Fable' }, surface: null },
+      },
+    ],
+  });
+  assert.ok(out);
+  assert.equal(out!.five_hour?.utilization, 41);
+  assert.equal(out!.seven_day?.utilization, 5);
+  assert.equal(out!.scoped?.length, 1);
+  assert.equal(out!.scoped?.[0].label, 'Fable');
+  assert.equal(out!.scoped?.[0].utilization, 7);
+  assert.equal(out!.scoped?.[0].resets_at, '2026-09-06T23:59:59Z');
+});
+
+test('parseAnthropic: limits entries without a model display_name are skipped', () => {
+  const out = parseAnthropic({
+    five_hour: { utilization: 10 },
+    limits: [
+      { kind: 'weekly_scoped', percent: 20, scope: { model: null, surface: 'cowork' } },
+      { kind: 'weekly_scoped', percent: 30, scope: { model: { display_name: '' } } },
+      { kind: 'weekly_scoped', scope: { model: { display_name: 'Fable' } } }, // no percent
+      'garbage',
+    ],
+  });
+  assert.ok(out);
+  assert.equal(out!.scoped, undefined);
+});
+
+test('parseAnthropic: only a scoped limit present → still a valid result', () => {
+  const out = parseAnthropic({
+    limits: [{ kind: 'weekly_scoped', percent: 12, scope: { model: { display_name: 'Fable' } } }],
+  });
+  assert.ok(out);
+  assert.equal(out!.five_hour, undefined);
+  assert.equal(out!.scoped?.[0].utilization, 12);
+});
+
 test('parseKimi: limits[0].detail + usage → 5h + weekly', () => {
   const out = parseKimi({
     limits: [{ detail: { limit: 1000, remaining: 750, resetTime: '2026-05-06T18:00:00Z' } }],

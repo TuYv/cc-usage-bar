@@ -142,6 +142,9 @@ async function runStatus(): Promise<void> {
     if (result.data.planName) console.log(`plan:          ${result.data.planName}`);
     if (fh) console.log(`5-hour:        ${Math.round(fh.utilization)}% (resets in ${formatCountdown(fh.resets_at)})`);
     if (wk) console.log(`7-day:         ${Math.round(wk.utilization)}% (resets in ${formatCountdown(wk.resets_at)})`);
+    for (const s of result.data.scoped ?? []) {
+      console.log(`7-day ${s.label}:  ${Math.round(s.utilization)}% (resets in ${formatCountdown(s.resets_at)})`);
+    }
   } else {
     const d = result.data;
     if (d.planName) console.log(`plan:          ${d.planName}`);

@@ -8,10 +8,17 @@ export interface SubscriptionTier {
   resets_at?: string; // ISO 8601
 }
 
+// A weekly quota scoped to a specific model (e.g. Fable). The label is
+// server-supplied, so new model buckets show up without a code change.
+export interface ScopedTier extends SubscriptionTier {
+  label: string;
+}
+
 export interface SubscriptionUsage {
   kind: 'subscription';
   five_hour?: SubscriptionTier;
   seven_day?: SubscriptionTier;
+  scoped?: ScopedTier[];
   planName?: string;
 }
 

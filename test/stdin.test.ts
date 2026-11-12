@@ -82,6 +82,49 @@ test('extractFromStdin: missing resets_at → utilization still present', () => 
   assert.equal(out!.five_hour?.resets_at, undefined);
 });
 
+test('extractFromStdin: model_scoped entries (Fable) are extracted', () => {
+  const out = extractFromStdin({
+    rate_limits: {
+      five_hour: { used_percentage: 41, resets_at: 1738425600 },
+      seven_day: { used_percentage: 5, resets_at: 1738857600 },
+      model_scoped: [
+        { display_name: 'Fable', utilization: 7, resets_at: '2026-09-06T23:59:59Z' },
+      ],
+    },
+  });
+  assert.ok(out);
+  assert.equal(out!.scoped?.length, 1);
+  assert.equal(out!.scoped?.[0].label, 'Fable');
+  assert.equal(out!.scoped?.[0].utilization, 7);
+  assert.equal(out!.scoped?.[0].resets_at, '2026-09-06T23:59:59Z');
+});
+
+test('extractFromStdin: model_scoped with null utilization / bad entries → skipped', () => {
+  const out = extractFromStdin({
+    rate_limits: {
+      five_hour: { used_percentage: 41 },
+      model_scoped: [
+        { display_name: 'Fable', utilization: null, resets_at: null },
+        { display_name: '', utilization: 7 },
+        'garbage',
+      ],
+    },
+  });
+  assert.ok(out);
+  assert.equal(out!.scoped, undefined);
+});
+
+test('extractFromStdin: only model_scoped present → still a valid result', () => {
+  const out = extractFromStdin({
+    rate_limits: {
+      model_scoped: [{ display_name: 'Fable', utilization: 12 }],
+    },
+  });
+  assert.ok(out);
+  assert.equal(out!.five_hour, undefined);
+  assert.equal(out!.scoped?.[0].utilization, 12);
+});
+
 test('extractFromStdin: NaN/Infinity used_percentage → tier dropped', () => {
   const out = extractFromStdin({
     rate_limits: {

@@ -99,7 +99,7 @@ Provider 通过 `ANTHROPIC_BASE_URL` 判断。
 | 余额 | OpenRouter | `openrouter.ai` |
 | 余额 | Novita | `api.novita.ai` |
 
-订阅模式显示 `5h X% Wk Y%`。余额模式显示 `¥34.20` 或 `$5.88/$10.00`。未知 provider 会输出空字符串，不会污染 statusline。
+订阅模式显示 `5h X% Wk Y%`。数据来自用量 API 时（比如加了 `--no-stdin`），如果套餐里有按模型单独计算的周额度（比如 Fable），会多显示一段，如 `Fable 7%`；Claude Code（截至 2.1.322）给 statusline 的 stdin 里没有这一项。余额模式显示 `¥34.20` 或 `$5.88/$10.00`。未知 provider 会输出空字符串，不会污染 statusline。
 
 ## 显示格式
 

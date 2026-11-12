@@ -119,6 +119,79 @@ test('preset numeric: 47% / 59%', () => {
   assert.equal(renderUsage(sub, opts({ format: 'numeric' })), '47% / 59%');
 });
 
+// ---------- model-scoped weekly quotas (e.g. Fable) ----------
+
+const subWithScoped: SubscriptionUsage = {
+  ...sub,
+  scoped: [{ label: 'Fable', utilization: 7, resets_at: localIso(2026, 5, 9, 9, 0) }],
+};
+
+test('scoped tier compact: renders first with its server-supplied label', () => {
+  assert.equal(
+    renderUsage(subWithScoped, opts({ format: 'compact' })),
+    'Fable 7% 5h 47% Wk 59%'
+  );
+});
+
+test('scoped tier bar presets: label + percent first, no third bar', () => {
+  assert.equal(
+    renderUsage(subWithScoped, opts({ format: 'bar', barWidth: 10 })),
+    'Fable 7% / [█████░░░░░] 47% / [██████░░░░] 59%'
+  );
+});
+
+test('scoped tier with same reset as Wk: time part is dropped', () => {
+  // subWithScoped's Fable resets_at equals seven_day's → no "until"/"in" on Fable
+  assert.equal(
+    renderUsage(subWithScoped, opts({ format: 'time' })),
+    'Fable 7% / 47% until 18:00 / 59% until 5/9 09:00'
+  );
+  assert.equal(
+    renderUsage(subWithScoped, opts({ format: 'bar-countdown', barWidth: 10 })),
+    'Fable 7% / [█████░░░░░] 47% in 8h / [██████░░░░] 59% in 2d23h'
+  );
+});
+
+test('scoped tier with a different reset keeps its time part', () => {
+  const differentReset: SubscriptionUsage = {
+    ...sub,
+    scoped: [{ label: 'Fable', utilization: 7, resets_at: localIso(2026, 5, 10, 9, 0) }],
+  };
+  assert.equal(
+    renderUsage(differentReset, opts({ format: 'time' })),
+    'Fable 7% until 5/10 09:00 / 47% until 18:00 / 59% until 5/9 09:00'
+  );
+});
+
+test('scoped tier without Wk present keeps its time part', () => {
+  const scopedOnly: SubscriptionUsage = {
+    kind: 'subscription',
+    scoped: [{ label: 'Fable', utilization: 7, resets_at: localIso(2026, 5, 9, 9, 0) }],
+  };
+  assert.equal(
+    renderUsage(scopedOnly, opts({ format: 'time' })),
+    'Fable 7% until 5/9 09:00'
+  );
+});
+
+test('scoped tier uses the Wk color ramp, not the 5h one', () => {
+  const scopedOnly: SubscriptionUsage = {
+    kind: 'subscription',
+    scoped: [{ label: 'Fable', utilization: 90 }],
+  };
+  const out = renderUsage(
+    scopedOnly,
+    opts({
+      color: true,
+      format: 'compact',
+      colorRamp5h: [{ min: 0, ansi: GREEN }],
+      colorRampWk: [{ min: 0, ansi: '\x1b[31m' }],
+    })
+  );
+  assert.ok(out.includes('\x1b[31m'), `expected Wk ramp color in: ${JSON.stringify(out)}`);
+  assert.ok(!out.includes(GREEN), `did not expect 5h ramp color in: ${JSON.stringify(out)}`);
+});
+
 test('preset time: 47% until 18:00 / 59% until 5/9 09:00', () => {
   assert.equal(
     renderUsage(sub, opts({ format: 'time' })),

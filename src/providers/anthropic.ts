@@ -3,6 +3,7 @@ import { httpGetJson } from './http';
 import {
   AdapterResult,
   ProviderEnv,
+  ScopedTier,
   SubscriptionUsage,
   UsageAdapter,
 } from './types';
@@ -15,9 +16,38 @@ interface ApiTier {
   resets_at?: string;
 }
 
+interface ApiLimit {
+  kind?: string;
+  percent?: number;
+  resets_at?: string | null;
+  scope?: { model?: { display_name?: string | null } | null } | null;
+}
+
 interface ApiResponse {
   five_hour?: ApiTier;
   seven_day?: ApiTier;
+  limits?: ApiLimit[];
+}
+
+// Model-scoped weekly quotas (e.g. Fable) only exist inside the `limits`
+// array, as weekly_scoped entries carrying the model's display_name. The
+// session / weekly_all entries duplicate five_hour / seven_day and have no
+// model scope, so filtering on display_name skips them.
+function parseScopedLimits(limits: unknown): ScopedTier[] {
+  if (!Array.isArray(limits)) return [];
+  const out: ScopedTier[] = [];
+  for (const l of limits as ApiLimit[]) {
+    if (!l || typeof l !== 'object') continue;
+    const label = l.scope?.model?.display_name;
+    if (typeof label !== 'string' || !label) continue;
+    if (typeof l.percent !== 'number' || !Number.isFinite(l.percent)) continue;
+    out.push({
+      label,
+      utilization: l.percent,
+      resets_at: typeof l.resets_at === 'string' ? l.resets_at : undefined,
+    });
+  }
+  return out;
 }
 
 export function parseAnthropic(body: unknown): SubscriptionUsage | null {
@@ -36,7 +66,9 @@ export function parseAnthropic(body: unknown): SubscriptionUsage | null {
       resets_at: typeof r.seven_day.resets_at === 'string' ? r.seven_day.resets_at : undefined,
     };
   }
-  if (!out.five_hour && !out.seven_day) return null;
+  const scoped = parseScopedLimits(r.limits);
+  if (scoped.length > 0) out.scoped = scoped;
+  if (!out.five_hour && !out.seven_day && !out.scoped) return null;
   return out;
 }
 
