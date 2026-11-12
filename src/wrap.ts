@@ -7,12 +7,13 @@ export type Layout = 'auto' | 'single' | 'multi';
 
 interface WrapArgs {
   prefix: string;
+  suffix: string;
   layout: Layout;
   fetchArgs: string[];
 }
 
 const FETCH_BIN = path.resolve(__dirname, '..', '..', 'bin', 'cc-usage-fetch.js');
-const RESERVED = new Set(['--prefix', '--layout', '--help', '-h']);
+const RESERVED = new Set(['--prefix', '--suffix', '--layout', '--help', '-h']);
 
 function isLayout(s: string): s is Layout {
   return s === 'auto' || s === 'single' || s === 'multi';
@@ -20,6 +21,7 @@ function isLayout(s: string): s is Layout {
 
 function parseArgs(argv: string[]): WrapArgs {
   const prefix = parseArg(argv, 'prefix') ?? process.env.CC_STATUSLINE_PREFIX ?? '';
+  const suffix = parseArg(argv, 'suffix') ?? process.env.CC_STATUSLINE_SUFFIX ?? '';
   const envLayout = process.env.CC_STATUSLINE_LAYOUT ?? '';
   let layout: Layout = isLayout(envLayout) ? envLayout : 'auto';
   const layoutArg = parseArg(argv, 'layout');
@@ -34,14 +36,14 @@ function parseArgs(argv: string[]): WrapArgs {
   const fetchArgs: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith('--prefix=') || a.startsWith('--layout=')) continue;
+    if (a.startsWith('--prefix=') || a.startsWith('--suffix=') || a.startsWith('--layout=')) continue;
     if (RESERVED.has(a)) {
       if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) i++; // skip its value
       continue;
     }
     fetchArgs.push(a);
   }
-  return { prefix, layout, fetchArgs };
+  return { prefix, suffix, layout, fetchArgs };
 }
 
 function readStdinSync(): string {
@@ -169,11 +171,14 @@ Usage: cc-usage-bar-wrap [options] [cc-usage-fetch args...]
 
 Options:
   --prefix=<command>           Shell command rendering the prefix (default: $CC_STATUSLINE_PREFIX, empty)
+  --suffix=<command>           Shell command rendering a far-right suffix after the bar (default: $CC_STATUSLINE_SUFFIX, empty)
   --layout=<auto|single|multi> auto = single line if it fits, else wrap (default: auto, env: CC_STATUSLINE_LAYOUT)
   --help                       Show this message
 
+The suffix rides the right end of the bar; on wrap it stays with the bar line.
+
 Any unrecognised argument is forwarded to cc-usage-fetch:
-  cc-usage-bar-wrap --prefix='sh ~/.claude/prefix.sh' --format=bar-time --bar-width=10
+  cc-usage-bar-wrap --prefix='sh ~/.claude/prefix.sh' --suffix='sh ~/.claude/suffix.sh' --format=bar-time --bar-width=10
 `);
 }
 
@@ -181,12 +186,22 @@ export async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   const input = readStdinSync();
 
-  const [prefixOut, barOut] = await Promise.all([runShell(opts.prefix, input), runFetch(opts.fetchArgs, input)]);
+  const [prefixOut, barOut, suffixOut] = await Promise.all([
+    runShell(opts.prefix, input),
+    runFetch(opts.fetchArgs, input),
+    runShell(opts.suffix, input),
+  ]);
   const prefix = prefixOut.replace(/\r?\n$/, '');
   const bar = barOut.replace(/\r?\n$/, '');
+  const suffix = suffixOut.replace(/\r?\n$/, '');
+
+  // The suffix rides the far right of the quota output: prefix stays the left
+  // group, [bar suffix] the right group, so wrapping keeps the two together
+  // (prefix on line 1, "bar suffix" on line 2) with no change to the layout math.
+  const right = [bar, suffix].filter(Boolean).join(' ');
 
   const cols = opts.layout === 'auto' ? detectColumns() : 0;
-  const wrap = decideWrap(opts.layout, prefix, bar, cols);
-  const out = compose(prefix, bar, wrap);
+  const wrap = decideWrap(opts.layout, prefix, right, cols);
+  const out = compose(prefix, right, wrap);
   if (out) process.stdout.write(out);
 }
